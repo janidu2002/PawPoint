@@ -1,0 +1,118 @@
+import type { ApiErrorBody, ApiResponse } from '@/types/api';
+import type { AuthResponse, LoginInput, RegisterInput, User } from '@/types/user';
+
+/**
+ * The one place the app talks HTTP.
+ *
+ * Screens never see a raw response or a status code: `request` unwraps the
+ * `{ success, message, data }` envelope and converts anything non-2xx into an
+ * `ApiError`, so feature code can just try/catch.
+ */
+
+/** Base URL including the `/api` prefix, e.g. http://192.168.1.34:5000/api */
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+/**
+ * A failed request, carrying the server's message and any per-field messages so
+ * a form can render them next to the relevant input.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+  readonly errors?: Record<string, string>;
+
+  constructor(status: number, message: string, errors?: Record<string, string>) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.errors = errors;
+    Object.setPrototypeOf(this, ApiError.prototype);
+  }
+}
+
+interface RequestOptions {
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  body?: unknown;
+  token?: string | null;
+}
+
+const request = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
+  const { method = 'GET', body, token } = options;
+
+  if (!API_URL) {
+    throw new ApiError(
+      0,
+      'EXPO_PUBLIC_API_URL is not set. Copy .env.example to .env and point it at the backend.',
+    );
+  }
+
+  const headers: Record<string, string> = { Accept: 'application/json' };
+
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_URL}${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    // fetch rejects when the server is unreachable: wrong host, phone not on the
+    // same network, or the backend not running. No response body exists here,
+    // so this message has to stand on its own.
+    throw new ApiError(0, 'Cannot reach the PawPoint server. Check your connection and try again.');
+  }
+
+  const raw = await response.text();
+
+  // A proxy or a crash can return HTML or nothing at all; JSON.parse would throw
+  // and mask the real status code.
+  let payload: ApiResponse<T> | undefined;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw) as ApiResponse<T>;
+    } catch {
+      throw new ApiError(response.status, `Unexpected response from the server (${response.status}).`);
+    }
+  }
+
+  if (!response.ok) {
+    const errorBody = payload as ApiErrorBody | undefined;
+    throw new ApiError(
+      response.status,
+      errorBody?.message ?? `Request failed (${response.status}).`,
+      errorBody?.errors,
+    );
+  }
+
+  if (!payload?.success) {
+    throw new ApiError(response.status, payload?.message ?? 'Request failed.');
+  }
+
+  // `data` is optional in the envelope but mandatory for the endpoints we call.
+  return payload.data as T;
+};
+
+export const authApi = {
+  register(input: RegisterInput): Promise<AuthResponse> {
+    // confirmPassword is a client-side concern; the server never sees it.
+    const { name, email, password } = input;
+    return request<AuthResponse>('/auth/register', {
+      method: 'POST',
+      body: { name, email, password },
+    });
+  },
+
+  login(input: LoginInput): Promise<AuthResponse> {
+    return request<AuthResponse>('/auth/login', { method: 'POST', body: input });
+  },
+
+  /** Validates a stored token and returns the owning user. */
+  me(token: string): Promise<User> {
+    return request<User>('/auth/me', { token });
+  },
+};
+
+export { API_URL };

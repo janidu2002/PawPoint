@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -7,17 +7,48 @@ import { Button } from '@/components/button';
 import { Input } from '@/components/input';
 import { font } from '@/constants/fonts';
 import { Colors, Spacing, Typography } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
+import { ApiError } from '@/lib/api';
+import type { FormErrors, RegisterInput } from '@/types/user';
 
 /**
- * Register placeholder. The four fields hold local state so they behave like
- * real inputs, but nothing is submitted yet: validation and the API call arrive
- * with auth in Phase 3, which will also drop these local states.
+ * Registration screen. Signs the user in on success rather than sending them to
+ * the login form, since the backend already returns a token for a new account.
  */
 export default function RegisterScreen() {
+  const { register, isSubmitting } = useAuth();
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<FormErrors<RegisterInput>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const onSubmit = async () => {
+    setFieldErrors({});
+    setFormError(null);
+
+    // The server never receives confirmPassword, so this is the only check that
+    // the two entries match.
+    if (password !== confirmPassword) {
+      setFieldErrors({ confirmPassword: 'Passwords do not match' });
+      return;
+    }
+
+    try {
+      await register({ name, email, password, confirmPassword });
+      router.replace('/home');
+    } catch (error) {
+      if (!(error instanceof ApiError)) throw error;
+
+      if (error.errors) {
+        setFieldErrors(error.errors);
+      } else {
+        setFormError(error.message);
+      }
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -47,6 +78,8 @@ export default function RegisterScreen() {
             autoCapitalize="words"
             value={name}
             onChangeText={setName}
+            error={fieldErrors.name}
+            returnKeyType="next"
           />
           <Input
             label="Email"
@@ -55,6 +88,8 @@ export default function RegisterScreen() {
             autoComplete="email"
             value={email}
             onChangeText={setEmail}
+            error={fieldErrors.email}
+            returnKeyType="next"
           />
           <Input
             label="Password"
@@ -63,6 +98,8 @@ export default function RegisterScreen() {
             autoComplete="password"
             value={password}
             onChangeText={setPassword}
+            error={fieldErrors.password}
+            returnKeyType="next"
           />
           <Input
             label="Confirm password"
@@ -71,10 +108,19 @@ export default function RegisterScreen() {
             autoComplete="password"
             value={confirmPassword}
             onChangeText={setConfirmPassword}
+            error={fieldErrors.confirmPassword}
+            returnKeyType="go"
+            onSubmitEditing={onSubmit}
           />
+
+          {formError ? (
+            <Text style={styles.formError} accessibilityRole="alert">
+              {formError}
+            </Text>
+          ) : null}
         </View>
 
-        <Button label="Create account" onPress={() => {}} />
+        <Button label="Create account" onPress={onSubmit} loading={isSubmitting} />
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>Already registered?</Text>
@@ -125,6 +171,13 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     marginBottom: Spacing.lg,
   },
+  formError: {
+    ...font('medium'),
+    fontSize: Typography.bodySm.fontSize,
+    lineHeight: Typography.bodySm.lineHeight,
+    color: Colors.light.error,
+    textAlign: 'center',
+  },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -135,11 +188,13 @@ const styles = StyleSheet.create({
   footerText: {
     ...font('regular'),
     fontSize: Typography.bodyMd.fontSize,
+    lineHeight: Typography.bodyMd.lineHeight,
     color: Colors.light.textSecondary,
   },
   footerLink: {
     ...font('semiBold'),
     fontSize: Typography.bodyMd.fontSize,
+    lineHeight: Typography.bodyMd.lineHeight,
     color: Colors.light.primaryHover,
   },
 });

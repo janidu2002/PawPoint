@@ -1,4 +1,4 @@
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
@@ -7,15 +7,42 @@ import { Button } from '@/components/button';
 import { Input } from '@/components/input';
 import { font } from '@/constants/fonts';
 import { Colors, Spacing, Typography } from '@/constants/theme';
+import { useAuth } from '@/context/AuthContext';
+import { ApiError } from '@/lib/api';
+import type { FormErrors, LoginInput } from '@/types/user';
 
 /**
- * Login placeholder. The fields hold local state so they behave like real
- * inputs, but nothing is submitted yet: validation and the API call arrive
- * with auth in Phase 3, which will also drop these local states.
+ * Login screen. Submits to the auth context, which persists the returned token
+ * and flips the session; the root layout's route guards then move the user on
+ * to the tabs.
  */
 export default function LoginScreen() {
+  const { login, isSubmitting } = useAuth();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<FormErrors<LoginInput>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const onSubmit = async () => {
+    setFieldErrors({});
+    setFormError(null);
+
+    try {
+      await login({ email, password });
+      router.replace('/home');
+    } catch (error) {
+      if (!(error instanceof ApiError)) throw error;
+
+      // A 401 has no per-field detail and no field to attach it to, so it
+      // renders above the button instead of under an input.
+      if (error.errors) {
+        setFieldErrors(error.errors);
+      } else {
+        setFormError(error.message);
+      }
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -41,6 +68,8 @@ export default function LoginScreen() {
             autoComplete="email"
             value={email}
             onChangeText={setEmail}
+            error={fieldErrors.email}
+            returnKeyType="next"
           />
           <Input
             label="Password"
@@ -49,16 +78,19 @@ export default function LoginScreen() {
             autoComplete="password"
             value={password}
             onChangeText={setPassword}
+            error={fieldErrors.password}
+            returnKeyType="go"
+            onSubmitEditing={onSubmit}
           />
+
+          {formError ? (
+            <Text style={styles.formError} accessibilityRole="alert">
+              {formError}
+            </Text>
+          ) : null}
         </View>
 
-        <Button label="Log in" onPress={() => {}} />
-
-        {/* Phase 1 has no auth, so this is the only way to reach the tabs
-            during review. Phase 3 replaces it with real session routing. */}
-        <Link href="/home" asChild>
-          <Text style={styles.link}>Preview the app</Text>
-        </Link>
+        <Button label="Log in" onPress={onSubmit} loading={isSubmitting} />
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>New to PawPoint?</Text>
@@ -109,13 +141,12 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     marginBottom: Spacing.lg,
   },
-  link: {
+  formError: {
     ...font('medium'),
     fontSize: Typography.bodySm.fontSize,
     lineHeight: Typography.bodySm.lineHeight,
-    color: Colors.light.textSecondary,
+    color: Colors.light.error,
     textAlign: 'center',
-    paddingVertical: Spacing.sm,
   },
   footer: {
     flexDirection: 'row',
@@ -127,11 +158,13 @@ const styles = StyleSheet.create({
   footerText: {
     ...font('regular'),
     fontSize: Typography.bodyMd.fontSize,
+    lineHeight: Typography.bodyMd.lineHeight,
     color: Colors.light.textSecondary,
   },
   footerLink: {
     ...font('semiBold'),
     fontSize: Typography.bodyMd.fontSize,
+    lineHeight: Typography.bodyMd.lineHeight,
     color: Colors.light.primaryHover,
   },
 });

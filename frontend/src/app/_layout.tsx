@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 
 import { fontAssets } from '@/constants/fonts';
 import { Colors } from '@/constants/theme';
+import { AuthProvider, useAuth } from '@/context/AuthContext';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   // Already hidden, or unavailable on this platform - safe to continue.
@@ -30,12 +31,23 @@ const pawPointTheme: Theme = {
   },
 };
 
-/**
- * Root layout: loads the Plus Jakarta Sans files, holds the splash screen until
- * they are ready, and provides the PawPoint theme to every screen.
- */
 export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <RootNavigator />
+    </AuthProvider>
+  );
+}
+
+/**
+ * Reads the session, so it has to sit inside AuthProvider.
+ *
+ * Holds the splash until both the fonts and the token check are done, then
+ * mounts one route group or the other via `Stack.Protected`.
+ */
+function RootNavigator() {
   const [fontsLoaded, fontError] = Font.useFonts(fontAssets);
+  const { status } = useAuth();
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
@@ -46,7 +58,10 @@ export default function RootLayout() {
   // Render nothing until the fonts are in, so no screen flashes in the system
   // font. fontError is tolerated so the app still starts if a file fails to
   // load - a missing font should not make the app unusable.
-  if (!fontsLoaded && !fontError) return null;
+  //
+  // Waiting for the session too avoids flashing the login screen on every launch
+  // just to redirect away from it a moment later.
+  if ((!fontsLoaded && !fontError) || status === 'restoring') return null;
 
   return (
     <ThemeProvider value={pawPointTheme}>
@@ -56,7 +71,21 @@ export default function RootLayout() {
           headerShown: false,
           contentStyle: { backgroundColor: Colors.light.background },
         }}
-      />
+      >
+        {/*
+          Only the group matching the session is mounted, so a signed-out user
+          deep-linking to /home is sent to /login and a signed-in user cannot
+          reach the auth screens.
+        */}
+        <Stack.Protected guard={status === 'signed-in'}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="doctor/[id]" />
+        </Stack.Protected>
+
+        <Stack.Protected guard={status === 'signed-out'}>
+          <Stack.Screen name="(auth)" />
+        </Stack.Protected>
+      </Stack>
     </ThemeProvider>
   );
 }
