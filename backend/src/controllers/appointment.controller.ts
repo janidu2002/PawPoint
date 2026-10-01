@@ -3,6 +3,7 @@ import type { Types } from "mongoose";
 
 import { Appointment, type AppointmentDocument } from "../models/Appointment";
 import { Doctor } from "../models/Doctor";
+import { User } from "../models/User";
 import { ApiError } from "../utils/ApiError";
 import {
   computeAvailability,
@@ -11,12 +12,14 @@ import {
   toTimeOfDay,
 } from "../utils/availability";
 import {
+  APPOINTMENT_STATUSES,
   BLOCKING_STATUSES,
   PET_TYPES,
   STATUS_TRANSITIONS,
   type AppointmentDto,
   type AppointmentStatus,
   type DoctorSummaryDto,
+  type OwnerSummaryDto,
   type PetType,
 } from "../types/appointment";
 import type { Weekday } from "../types/doctor";
@@ -79,12 +82,14 @@ interface LeanAppointment {
  */
 const toAppointmentListItem = (
   appointment: LeanAppointment,
-  doctor?: DoctorSummaryDto
+  doctor?: DoctorSummaryDto,
+  owner?: OwnerSummaryDto
 ): AppointmentDto => ({
   id: appointment._id.toString(),
   userId: appointment.userId.toString(),
   doctorId: appointment.doctorId.toString(),
   ...(doctor ? { doctor } : {}),
+  ...(owner ? { owner } : {}),
   petName: appointment.petName,
   petType: appointment.petType,
   petBreed: appointment.petBreed,
@@ -106,6 +111,17 @@ const toDoctorSummary = (doctor: {
   name: doctor.name,
   specialization: doctor.specialization,
   image: doctor.image ?? null,
+});
+
+/**
+ * Reduces a user to an id and a name for the admin queue.
+ *
+ * Deliberately takes a projection-shaped value rather than a user document so the
+ * caller cannot hand this a `User` with the password hash still selected.
+ */
+const toOwnerSummary = (user: { _id: unknown; name: string }): OwnerSummaryDto => ({
+  id: String(user._id),
+  name: user.name,
 });
 
 const asString = (value: unknown): string =>
@@ -314,6 +330,68 @@ export const list = async (req: Request, res: Response): Promise<void> => {
       toAppointmentListItem(
         appointment,
         summaries.get(appointment.doctorId.toString())
+      )
+    ),
+  });
+};
+
+/**
+ * GET /api/appointments/admin — every booking in the clinic, not just the
+ * caller's.
+ *
+ * This is the counterpart to `list`, and the reason that handler can stay scoped
+ * to the JWT: an admin needs both views, and splitting them by route means the
+ * owner-facing one stays incapable of leaking another user's bookings. Guarded by
+ * requireAdmin rather than a token check of its own.
+ *
+ * Optional `?status=` narrows the queue. Ascending date and time throughout,
+ * because a queue is worked in the order things are happening.
+ */
+export const adminList = async (req: Request, res: Response): Promise<void> => {
+  const requested = asString(req.query.status);
+
+  if (requested && !APPOINTMENT_STATUSES.includes(requested as AppointmentStatus)) {
+    throw ApiError.badRequest(
+      `Status must be one of: ${APPOINTMENT_STATUSES.join(", ")}`
+    );
+  }
+
+  const filter = requested ? { status: requested as AppointmentStatus } : {};
+
+  const appointments = (await Appointment.find(filter)
+    .sort({ appointmentDate: 1, appointmentTime: 1 })
+    .lean()) as unknown as LeanAppointment[];
+
+  // Two batched joins rather than a populate per row or per field, matching how
+  // `list` already resolves doctors. Owners are projected to id and name alone:
+  // the queue answers "whose appointment is this", not "how do I contact them".
+  const doctorIds = [
+    ...new Set(appointments.map((appointment) => appointment.doctorId)),
+  ];
+  const userIds = [...new Set(appointments.map((appointment) => appointment.userId))];
+
+  const doctors = doctorIds.length
+    ? await Doctor.find({ _id: { $in: doctorIds } }).lean()
+    : [];
+  const owners = userIds.length
+    ? await User.find({ _id: { $in: userIds } }).select("_id name").lean()
+    : [];
+
+  const doctorSummaries = new Map<string, DoctorSummaryDto>(
+    doctors.map((doctor) => [doctor._id.toString(), toDoctorSummary(doctor)])
+  );
+  const ownerSummaries = new Map<string, OwnerSummaryDto>(
+    owners.map((user) => [user._id.toString(), toOwnerSummary(user)])
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Appointments retrieved",
+    data: appointments.map((appointment) =>
+      toAppointmentListItem(
+        appointment,
+        doctorSummaries.get(appointment.doctorId.toString()),
+        ownerSummaries.get(appointment.userId.toString())
       )
     ),
   });

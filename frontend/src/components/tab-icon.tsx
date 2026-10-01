@@ -1,7 +1,7 @@
 import type { ColorValue } from 'react-native';
 import { SymbolView, type AndroidSymbol, type SFSymbol } from 'expo-symbols';
 
-export type TabIconName = 'home' | 'appointments' | 'profile' | 'doctors';
+export type TabIconName = 'home' | 'appointments' | 'profile' | 'doctors' | 'queue';
 
 /**
  * Tab bar icons.
@@ -15,6 +15,7 @@ const SYMBOLS: Record<TabIconName, { ios: SFSymbol; android: AndroidSymbol }> = 
   appointments: { ios: 'calendar', android: 'calendar_month' },
   profile: { ios: 'person.crop.circle', android: 'person' },
   doctors: { ios: 'stethoscope', android: 'medical_services' },
+  queue: { ios: 'checklist', android: 'checklist' },
 };
 
 interface TabIconProps {

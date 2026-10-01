@@ -10,6 +10,12 @@ export const BLOCKING_STATUSES: AppointmentStatus[] = ['Pending', 'Confirmed'];
 
 export type PetType = 'Dog' | 'Cat' | 'Bird' | 'Rabbit' | 'Other';
 
+/**
+ * What the clinic queue can be narrowed to. `All` is a client-side sentinel, not
+ * an appointment status - the backend receives no `status` query at all for it.
+ */
+export type AppointmentStatusFilter = AppointmentStatus | 'All';
+
 export interface Appointment {
   id: string;
   /** Always taken from the JWT on the backend, never from the client. */
@@ -17,6 +23,8 @@ export interface Appointment {
   doctorId: string;
   /** Populated when the backend joins the Doctor reference. */
   doctor?: Pick<Doctor, 'id' | 'name' | 'specialization' | 'image'>;
+  /** Admin queue only. Name alone - the queue is not a contact directory. */
+  owner?: { id: string; name: string };
   petName: string;
   petType: PetType;
   petBreed: string;

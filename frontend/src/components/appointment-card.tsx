@@ -13,6 +13,10 @@ export interface AppointmentCardProps {
   /** Present when the request is still Pending, so only then can it be withdrawn. */
   onCancel?: (appointment: Appointment) => void;
   isCancelling?: boolean;
+  /** Admin queue only. Who booked it - the owner's own list already knows. */
+  ownerName?: string;
+  /** Admin queue only. The status actions valid for this row's current status. */
+  actions?: React.ReactNode;
 }
 
 /**
@@ -25,9 +29,18 @@ export function AppointmentCard({
   appointment,
   onCancel,
   isCancelling = false,
+  ownerName,
+  actions,
 }: AppointmentCardProps) {
   const isCancellable =
     onCancel !== undefined && appointment.status === 'Pending' && !isCancelling;
+
+  // The queue substitutes who booked the appointment for the vet's
+  // specialisation, because "who is this for" is what an admin triaging the day
+  // needs, and the specialisation is already implied by the vet's name above it.
+  const subtitle = ownerName
+    ? `Booked by ${ownerName}`
+    : appointment.doctor?.specialization ?? 'Appointment';
 
   return (
     <Card style={styles.card}>
@@ -43,7 +56,7 @@ export function AppointmentCard({
             {appointment.doctor?.name ?? 'Vet no longer available'}
           </Text>
           <Text style={styles.specialization} numberOfLines={1}>
-            {appointment.doctor?.specialization ?? 'Appointment'}
+            {subtitle}
           </Text>
         </View>
 
@@ -67,7 +80,7 @@ export function AppointmentCard({
         {appointment.reason}
       </Text>
 
-      {isCancellable ? (
+      {actions ?? (isCancellable ? (
         <Button
           label="Cancel appointment"
           onPress={() => onCancel?.(appointment)}
@@ -75,7 +88,7 @@ export function AppointmentCard({
           loading={isCancelling}
           style={styles.cancelButton}
         />
-      ) : null}
+      ) : null)}
     </Card>
   );
 }

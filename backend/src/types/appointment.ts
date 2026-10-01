@@ -61,6 +61,17 @@ export interface DoctorSummaryDto {
   image: string | null;
 }
 
+/**
+ * The slice of a User an admin needs to recognise who booked an appointment.
+ *
+ * Name only. The clinic queue is a scheduling surface, not a way to look up
+ * people's contact details, so the email that `UserDto` carries stays out of it.
+ */
+export interface OwnerSummaryDto {
+  id: string;
+  name: string;
+}
+
 /** An appointment as sent to the client. */
 export interface AppointmentDto {
   id: string;
@@ -68,6 +79,8 @@ export interface AppointmentDto {
   doctorId: string;
   /** Present whenever the controller populates the reference. */
   doctor?: DoctorSummaryDto;
+  /** Admin queue only - the owner's own list already knows who they are. */
+  owner?: OwnerSummaryDto;
   petName: string;
   petType: PetType;
   petBreed: string;

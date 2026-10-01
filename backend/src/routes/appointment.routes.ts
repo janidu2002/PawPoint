@@ -1,6 +1,12 @@
 import { Router } from "express";
 
-import { cancel, create, list, setStatus } from "../controllers/appointment.controller";
+import {
+  adminList,
+  cancel,
+  create,
+  list,
+  setStatus,
+} from "../controllers/appointment.controller";
 import { requireAdmin } from "../middleware/requireAdmin";
 import { requireAuth } from "../middleware/requireAuth";
 
@@ -19,11 +25,13 @@ router.post("/", requireAuth, create);
 router.post("/:id/cancel", requireAuth, cancel);
 
 /**
- * Status changes are admin-only: the clinic confirms and completes slots.
+ * The clinic-wide queue, plus status changes.
  *
- * `requireAdmin` depends on `requireAuth` having set `req.userId`, so it always
- * follows it rather than replacing it.
+ * Declared ahead of `/:id/status` so the literal path is matched before any
+ * parameterised one could swallow it. `requireAdmin` depends on `requireAuth`
+ * having set `req.userId`, so it always follows it rather than replacing it.
  */
+router.get("/admin", requireAuth, requireAdmin, adminList);
 router.patch("/:id/status", requireAuth, requireAdmin, setStatus);
 
 export default router;

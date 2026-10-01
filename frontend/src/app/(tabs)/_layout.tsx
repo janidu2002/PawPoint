@@ -1,17 +1,21 @@
 import { Tabs } from 'expo-router';
 
 import { TabIcon } from '@/components/tab-icon';
+import { useAuth } from '@/context/AuthContext';
 import { fontFamily } from '@/constants/fonts';
-import { Colors, Typography } from '@/constants/theme';
+import { Colors } from '@/constants/theme';
 
 /**
  * Tab group for signed-in users. The parentheses keep it out of the URL, so
- * these screens live at /home, /doctors, /appointments and /profile.
+ * these screens live at /home, /doctors, /appointments, /queue and /profile.
  *
  * The root layout mounts this group only when a session exists, so these
  * screens assume `user` is populated.
  */
 export default function TabsLayout() {
+  const { user } = useAuth();
+  const isAdmin = user?.isAdmin ?? false;
+
   return (
     <Tabs
       screenOptions={{
@@ -24,7 +28,9 @@ export default function TabsLayout() {
         },
         tabBarLabelStyle: {
           fontFamily: fontFamily.medium,
-          fontSize: Typography.labelSm.fontSize,
+          // 10px matches native iOS tab bar label sizing and keeps
+          // "Appointments" from truncating on 375pt screens when 5 tabs render.
+          fontSize: 10,
           fontWeight: '600',
         },
       }}
@@ -48,6 +54,14 @@ export default function TabsLayout() {
         options={{
           title: 'Appointments',
           tabBarIcon: ({ color }) => <TabIcon name="appointments" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="queue"
+        options={{
+          title: 'Queue',
+          href: isAdmin ? undefined : null,
+          tabBarIcon: ({ color }) => <TabIcon name="queue" color={color} />,
         }}
       />
       <Tabs.Screen

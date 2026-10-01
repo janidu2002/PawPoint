@@ -3,6 +3,7 @@ import type {
   Appointment,
   AppointmentInput,
   AppointmentStatus,
+  AppointmentStatusFilter,
   Availability,
 } from '@/types/appointment';
 import type { Doctor, DoctorInput } from '@/types/doctor';
@@ -199,6 +200,18 @@ export const appointmentsApi = {
    */
   cancel(id: string, token: string): Promise<Appointment> {
     return request<Appointment>(`/appointments/${id}/cancel`, { method: 'POST', token });
+  },
+
+  /**
+   * The clinic-wide queue, soonest first. Admin only; the server throws 403
+   * otherwise.
+   *
+   * `All` means no filter, so the query parameter is omitted rather than sent as
+   * the string "All", which the server would reject.
+   */
+  adminList(token: string, status: AppointmentStatusFilter = 'All'): Promise<Appointment[]> {
+    const query = status === 'All' ? '' : `?status=${encodeURIComponent(status)}`;
+    return request<Appointment[]>(`/appointments/admin${query}`, { token });
   },
 
   /** Admin only. The server rejects a transition the current status forbids. */

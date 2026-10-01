@@ -112,6 +112,19 @@ appointmentSchema.index({ doctorId: 1, appointmentDate: 1, status: 1 });
 appointmentSchema.index({ userId: 1, appointmentDate: 1, status: 1 });
 
 /**
+ * Serves the admin queue, which is the only query with neither a user nor a
+ * doctor to filter on.
+ *
+ * The two indexes above both lead with a reference field, so neither can order a
+ * clinic-wide list. Date and time lead here for the same reason date leads there.
+ * A `status` filter is applied as a residual predicate rather than leading the
+ * key: a clinic's queue is bounded by what it has booked, so sorting a day's
+ * handful of rows and discarding most of them is cheaper than maintaining a
+ * second index over the same fields.
+ */
+appointmentSchema.index({ appointmentDate: 1, appointmentTime: 1 });
+
+/**
  * Exported so the global error handler can tell this conflict apart from a
  * duplicate email when Mongo reports a 11000, which carries no other context.
  */
