@@ -106,6 +106,11 @@ const appointmentSchema = new Schema<IAppointment>(
 // then needs to test status.
 appointmentSchema.index({ doctorId: 1, appointmentDate: 1, status: 1 });
 
+// Serves the owner's appointment list. Date leads the compound key because the
+// list is ordered by date, so the same index answers both the filter and the
+// sort instead of forcing an in-memory sort on every load.
+appointmentSchema.index({ userId: 1, appointmentDate: 1, status: 1 });
+
 /**
  * Exported so the global error handler can tell this conflict apart from a
  * duplicate email when Mongo reports a 11000, which carries no other context.

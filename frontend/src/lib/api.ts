@@ -183,9 +183,22 @@ export const doctorsApi = {
  * 403 for everyone else.
  */
 export const appointmentsApi = {
+  /** The caller's own bookings, oldest first. The server scopes by token. */
+  list(token: string): Promise<Appointment[]> {
+    return request<Appointment[]>('/appointments', { token });
+  },
+
   /** Creates a Pending appointment. Throws ApiError 409 if the slot was just taken. */
   create(input: AppointmentInput, token: string): Promise<Appointment> {
     return request<Appointment>('/appointments', { method: 'POST', body: input, token });
+  },
+
+  /**
+   * The owner withdraws their own request. Throws ApiError 409 once the clinic
+   * has confirmed it, which is the point to stop offering the action.
+   */
+  cancel(id: string, token: string): Promise<Appointment> {
+    return request<Appointment>(`/appointments/${id}/cancel`, { method: 'POST', token });
   },
 
   /** Admin only. The server rejects a transition the current status forbids. */

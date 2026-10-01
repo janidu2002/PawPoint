@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import type { Types } from "mongoose";
 
 import { Appointment, type AppointmentDocument } from "../models/Appointment";
 import { Doctor } from "../models/Doctor";
@@ -16,6 +17,7 @@ import {
   type AppointmentDto,
   type AppointmentStatus,
   type DoctorSummaryDto,
+  type PetType,
 } from "../types/appointment";
 import type { Weekday } from "../types/doctor";
 
@@ -41,6 +43,48 @@ const toAppointmentDto = (appointment: AppointmentDocument): AppointmentDto => (
   id: appointment._id.toString(),
   userId: appointment.userId.toString(),
   doctorId: appointment.doctorId.toString(),
+  petName: appointment.petName,
+  petType: appointment.petType,
+  petBreed: appointment.petBreed,
+  appointmentDate: appointment.appointmentDate,
+  appointmentTime: appointment.appointmentTime,
+  reason: appointment.reason,
+  status: appointment.status,
+  createdAt: appointment.createdAt.toISOString(),
+  updatedAt: appointment.updatedAt.toISOString(),
+});
+
+/** A lean appointment row, before the doctor is joined on. */
+interface LeanAppointment {
+  _id: Types.ObjectId;
+  userId: Types.ObjectId;
+  doctorId: Types.ObjectId;
+  petName: string;
+  petType: PetType;
+  petBreed: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  reason: string;
+  status: AppointmentStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Lean variant of `toAppointmentDto`.
+ *
+ * A `.lean()` query yields plain objects rather than documents, so the hydrated
+ * helper cannot be reused for reads. Both mappers exist rather than one being
+ * loosened because `setStatus` depends on the hydrated shape to call `.save()`.
+ */
+const toAppointmentListItem = (
+  appointment: LeanAppointment,
+  doctor?: DoctorSummaryDto
+): AppointmentDto => ({
+  id: appointment._id.toString(),
+  userId: appointment.userId.toString(),
+  doctorId: appointment.doctorId.toString(),
+  ...(doctor ? { doctor } : {}),
   petName: appointment.petName,
   petType: appointment.petType,
   petBreed: appointment.petBreed,
@@ -232,10 +276,99 @@ export const create = async (req: Request, res: Response): Promise<void> => {
 };
 
 /**
+ * GET /api/appointments — the caller's own bookings.
+ *
+ * Scoped by the JWT rather than a query parameter, so there is no way to ask for
+ * somebody else's appointments. Returns the whole history unpaginated: the
+ * `userId` index covers the filter and the sort, and a pet owner has a handful of
+ * bookings rather than a feed.
+ */
+export const list = async (req: Request, res: Response): Promise<void> => {
+  const userId = (req as Request & { userId?: string }).userId;
+  if (!userId) {
+    throw ApiError.unauthorized();
+  }
+
+  const appointments = (await Appointment.find({ userId })
+    .sort({ appointmentDate: 1, appointmentTime: 1 })
+    .lean()) as unknown as LeanAppointment[];
+
+  // One extra query for the whole page rather than a populate per row. A booking
+  // whose vet has been removed since must still render, hence the fallback.
+  const doctorIds = [
+    ...new Set(appointments.map((appointment) => appointment.doctorId)),
+  ];
+
+  const doctors = doctorIds.length
+    ? await Doctor.find({ _id: { $in: doctorIds } }).lean()
+    : [];
+
+  const summaries = new Map<string, DoctorSummaryDto>(
+    doctors.map((doctor) => [doctor._id.toString(), toDoctorSummary(doctor)])
+  );
+
+  res.status(200).json({
+    success: true,
+    message: "Appointments retrieved",
+    data: appointments.map((appointment) =>
+      toAppointmentListItem(
+        appointment,
+        summaries.get(appointment.doctorId.toString())
+      )
+    ),
+  });
+};
+
+/**
+ * POST /api/appointments/:id/cancel — the owner withdraws their own request.
+ *
+ * Pending only: the clinic confirms a booking, and from that point a cancellation
+ * is the clinic's call rather than the owner's. A separate route from
+ * PATCH /:id/status keeps that admin-only guarantee intact.
+ *
+ * Answering 404 rather than 403 for someone else's appointment matches
+ * requireAdmin's reasoning - the response should not confirm which ids exist.
+ */
+export const cancel = async (req: Request, res: Response): Promise<void> => {
+  const userId = (req as Request & { userId?: string }).userId;
+  if (!userId) {
+    throw ApiError.unauthorized();
+  }
+
+  const appointment = await Appointment.findOne({
+    _id: req.params.id,
+    userId,
+  });
+
+  if (!appointment) {
+    throw ApiError.notFound("Appointment not found");
+  }
+
+  if (appointment.status !== "Pending") {
+    throw ApiError.conflict(
+      appointment.status === "Confirmed"
+        ? "The clinic has confirmed this appointment. Please contact them to cancel it."
+        : `A ${appointment.status.toLowerCase()} appointment cannot be cancelled`
+    );
+  }
+
+  // Cancelling moves the appointment out of the partial unique index's filter,
+  // which is what releases the slot back into the availability grid.
+  appointment.status = "Cancelled";
+  await appointment.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Appointment cancelled",
+    data: toAppointmentDto(appointment),
+  });
+};
+
+/**
  * PATCH /api/appointments/:id/status — admin only.
  *
- * Admins only for this phase: the list they act on arrives with the appointments
- * screen. Pet owners cannot cancel their own booking yet.
+ * Owners withdraw through POST /:id/cancel; this endpoint is how the clinic
+ * confirms, completes, or cancels on the owner's behalf.
  */
 export const setStatus = async (req: Request, res: Response): Promise<void> => {
   const appointment = await Appointment.findById(req.params.id);

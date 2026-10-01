@@ -25,7 +25,7 @@ export default function ProfileScreen() {
           <Text style={styles.avatarText}>{initial}</Text>
         </View>
         <Text style={styles.name}>{user?.name ?? 'Signed out'}</Text>
-        <Text style={styles.email}>{user?.email ?? 'Authentication arrives in Phase 3'}</Text>
+        <Text style={styles.email}>{user?.email ?? 'Not signed in'}</Text>
       </Card>
 
       <View style={styles.actions}>

@@ -43,7 +43,16 @@ export const isPastDate = (date: string): boolean => {
   return parsed.getTime() < today.getTime();
 };
 
-/** Today as "YYYY-MM-DD", for seeding the date field. */
+/**
+ * Today as "YYYY-MM-DD" in UTC.
+ *
+ * UTC on purpose: the server derives "today" the same way when it decides
+ * whether a date is in the past, so grouping a booking as upcoming has to use the
+ * same day boundary or a late-evening row lands in the wrong section.
+ */
+export const todayIsoUtc = (): string => new Date().toISOString().slice(0, 10);
+
+/** Today as "YYYY-MM-DD" in local time, for seeding the date field. */
 export const todayIso = (): string => {
   const now = new Date();
   const month = String(now.getMonth() + 1).padStart(2, '0');
