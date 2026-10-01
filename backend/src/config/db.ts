@@ -1,8 +1,10 @@
 import mongoose from "mongoose";
 import dns from "dns";
 
+import { env } from "./env";
+
 const applyDnsServers = (): void => {
-  const servers = process.env.DNS_SERVERS;
+  const servers = env.dnsServers;
   if (!servers) return;
 
   dns.setServers(servers.split(",").map((s) => s.trim()).filter(Boolean));
@@ -10,9 +12,7 @@ const applyDnsServers = (): void => {
 };
 
 const connectDB = async (): Promise<mongoose.Connection> => {
-  const uri = process.env.MONGO_URI;
-
-  if (!uri) throw new Error("MONGO_URI is not defined in .env");
+  const uri = env.mongoUri;
 
   applyDnsServers();
 

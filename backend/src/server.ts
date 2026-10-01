@@ -1,11 +1,11 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import { Server } from "http";
 
 import connectDB from "./config/db";
-
-dotenv.config();
+import { env } from "./config/env";
+import { errorHandler, notFoundHandler } from "./middleware/error";
+import apiRouter from "./routes";
 
 const app = express();
 
@@ -18,7 +18,14 @@ app.get("/", (_req, res) => {
   });
 });
 
-const PORT = Number(process.env.PORT) || 5000;
+// All feature routes live under /api. New features register in routes/index.ts.
+app.use("/api", apiRouter);
+
+// Registered last: these only run for errors that reached the end of the stack.
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+const PORT = env.port;
 
 connectDB()
   .then((): Server =>
