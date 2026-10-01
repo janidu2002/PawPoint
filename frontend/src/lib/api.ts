@@ -1,3 +1,6 @@
+import axios, { AxiosError } from 'axios';
+import type * as ImagePicker from 'expo-image-picker';
+import { Platform } from 'react-native';
 import type { ApiErrorBody, ApiResponse } from '@/types/api';
 import type {
   Appointment,
@@ -41,6 +44,7 @@ interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   token?: string | null;
+  multipart?: boolean;
 }
 
 /** For 204 responses, where the contract is "no body" rather than "empty data". */
@@ -49,7 +53,7 @@ const requestEmpty = async (path: string, options: RequestOptions = {}): Promise
 };
 
 const request = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
-  const { method = 'GET', body, token } = options;
+  const { method = 'GET', body, token, multipart = false } = options;
 
   if (!API_URL) {
     throw new ApiError(
@@ -60,51 +64,41 @@ const request = async <T>(path: string, options: RequestOptions = {}): Promise<T
 
   const headers: Record<string, string> = { Accept: 'application/json' };
 
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (body !== undefined && !multipart) headers['Content-Type'] = 'application/json';
+  if (multipart && Platform.OS !== 'web') headers['Content-Type'] = 'multipart/form-data';
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  let response: Response;
-
+  let payload: ApiResponse<T> | undefined;
+  let status = 0;
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    const response = await axios.request<ApiResponse<T>>({
+      url: `${API_URL}${path}`,
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      data: body,
+      validateStatus: () => true,
     });
-  } catch {
-    // fetch rejects when the server is unreachable: wrong host, phone not on the
-    // same network, or the backend not running. No response body exists here,
-    // so this message has to stand on its own.
-    throw new ApiError(0, 'Cannot reach the PawPoint server. Check your connection and try again.');
-  }
-
-  const raw = await response.text();
-
-  // A proxy or a crash can return HTML or nothing at all; JSON.parse would throw
-  // and mask the real status code.
-  let payload: ApiResponse<T> | undefined;
-  if (raw) {
-    try {
-      payload = JSON.parse(raw) as ApiResponse<T>;
-    } catch {
-      throw new ApiError(response.status, `Unexpected response from the server (${response.status}).`);
+    status = response.status;
+    payload = response.data;
+  } catch (error) {
+    if (error instanceof AxiosError && error.response) {
+      status = error.response.status;
+      payload = error.response.data as ApiResponse<T>;
+    } else {
+      throw new ApiError(0, 'Cannot reach the PawPoint server. Check your connection and try again.');
     }
   }
 
-  if (!response.ok) {
+  if (status < 200 || status >= 300) {
     const errorBody = payload as ApiErrorBody | undefined;
-    throw new ApiError(
-      response.status,
-      errorBody?.message ?? `Request failed (${response.status}).`,
-      errorBody?.errors,
-    );
+    throw new ApiError(status, errorBody?.message ?? `Request failed (${status}).`, errorBody?.errors);
   }
 
   // 204 carries no envelope by design, so there is nothing to unwrap.
-  if (response.status === 204) return undefined as T;
+  if (status === 204) return undefined as T;
 
   if (!payload?.success) {
-    throw new ApiError(response.status, payload?.message ?? 'Request failed.');
+    throw new ApiError(status, payload?.message ?? 'Request failed.');
   }
 
   // `data` is optional in the envelope but mandatory for the endpoints we call.
@@ -174,6 +168,28 @@ export const doctorsApi = {
   remove(id: string, token: string): Promise<void> {
     return requestEmpty(`/doctors/${id}`, { token });
   },
+
+  async uploadImage(id: string, asset: ImagePicker.ImagePickerAsset, token: string): Promise<Doctor> {
+    const body = new FormData();
+    const name = asset.fileName ?? `doctor-image.${asset.mimeType === 'image/png' ? 'png' : 'jpg'}`;
+    if (Platform.OS === 'web') {
+      const response = await fetch(asset.uri);
+      const blob = await response.blob();
+      body.append('image', blob, name);
+    } else {
+      body.append('image', {
+        uri: asset.uri,
+        name,
+        type: asset.mimeType ?? 'image/jpeg',
+      } as unknown as Blob);
+    }
+    return request<Doctor>(`/doctors/${id}/image`, {
+      method: 'PUT',
+      body,
+      token,
+      multipart: true,
+    });
+  },
 };
 
 /**
@@ -189,6 +205,10 @@ export const appointmentsApi = {
     return request<Appointment[]>('/appointments', { token });
   },
 
+  get(id: string, token: string): Promise<Appointment> {
+    return request<Appointment>(`/appointments/${id}`, { token });
+  },
+
   /** Creates a Pending appointment. Throws ApiError 409 if the slot was just taken. */
   create(input: AppointmentInput, token: string): Promise<Appointment> {
     return request<Appointment>('/appointments', { method: 'POST', body: input, token });
@@ -200,6 +220,18 @@ export const appointmentsApi = {
    */
   cancel(id: string, token: string): Promise<Appointment> {
     return request<Appointment>(`/appointments/${id}/cancel`, { method: 'POST', token });
+  },
+
+  update(id: string, input: AppointmentInput, token: string): Promise<Appointment> {
+    return request<Appointment>(`/appointments/${id}`, {
+      method: 'PUT',
+      body: input,
+      token,
+    });
+  },
+
+  remove(id: string, token: string): Promise<void> {
+    return requestEmpty(`/appointments/${id}`, { token });
   },
 
   /**

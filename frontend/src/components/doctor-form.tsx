@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 
 import { Button } from '@/components/button';
+import { DoctorAvatar } from '@/components/doctor-avatar';
 import { Input } from '@/components/input';
 import { WeekdayPicker } from '@/components/weekday-picker';
 import { font } from '@/constants/fonts';
@@ -17,7 +19,7 @@ export interface DoctorFormProps {
   /** Present when editing; seeds the fields. Omit to start blank. */
   doctor?: Doctor;
   submitLabel: string;
-  onSubmit: (input: DoctorInput) => Promise<void>;
+  onSubmit: (input: DoctorInput, image?: ImagePicker.ImagePickerAsset) => Promise<void>;
   /** Rendered under the submit button, for navigation or extras. */
   footer?: React.ReactNode;
 }
@@ -123,6 +125,25 @@ export function DoctorForm({ doctor, submitLabel, onSubmit, footer }: DoctorForm
   const [errors, setErrors] = useState<FormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [image, setImage] = useState<ImagePicker.ImagePickerAsset | undefined>();
+  const [imageError, setImageError] = useState<string | undefined>();
+
+  const chooseImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    if ((asset.fileSize ?? 0) > 5 * 1024 * 1024 || !['image/jpeg', 'image/png', 'image/webp'].includes(asset.mimeType ?? '')) {
+      setImageError('Choose a JPEG, PNG, or WebP image.');
+      return;
+    }
+    setImageError(undefined);
+    setImage(asset);
+  };
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setState((prev) => ({ ...prev, [key]: value }));
@@ -154,7 +175,7 @@ export function DoctorForm({ doctor, submitLabel, onSubmit, footer }: DoctorForm
         endTime: state.endTime.trim(),
         consultationFee: Number(state.consultationFee.trim()),
         description: state.description.trim(),
-      });
+      }, image);
     } catch (error) {
       if (error instanceof ApiError) {
         if (error.errors) setErrors(error.errors as FormErrors);
@@ -209,6 +230,13 @@ export function DoctorForm({ doctor, submitLabel, onSubmit, footer }: DoctorForm
           error={errors.phoneNumber}
           editable={!submitting}
         />
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Profile image</Text>
+        <DoctorAvatar name={state.name || 'Doctor'} image={image?.uri ?? doctor?.image ?? null} size={88} />
+        <Button label="Choose image" onPress={chooseImage} variant="secondary" disabled={submitting} />
+        {imageError ? <Text style={styles.formError}>{imageError}</Text> : null}
       </View>
 
       <View style={styles.section}>

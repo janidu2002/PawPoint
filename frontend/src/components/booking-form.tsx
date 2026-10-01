@@ -19,6 +19,7 @@ const MAX_REASON = 1000;
 export interface BookingFormProps {
   doctor: Doctor;
   onSubmit: (input: AppointmentInput) => Promise<void>;
+  initialValue?: AppointmentInput;
   submitLabel?: string;
   footer?: React.ReactNode;
 }
@@ -45,17 +46,18 @@ type FormErrors = Partial<Record<keyof FormState, string>>;
 export function BookingForm({
   doctor,
   onSubmit,
+  initialValue,
   submitLabel = 'Request appointment',
   footer,
 }: BookingFormProps) {
-  const [state, setState] = useState<FormState>({
-    appointmentDate: '',
-    appointmentTime: '',
-    petName: '',
-    petType: '',
-    petBreed: '',
-    reason: '',
-  });
+  const [state, setState] = useState<FormState>(() => ({
+    appointmentDate: initialValue?.appointmentDate ?? '',
+    appointmentTime: initialValue?.appointmentTime ?? '',
+    petName: initialValue?.petName ?? '',
+    petType: initialValue?.petType ?? '',
+    petBreed: initialValue?.petBreed ?? '',
+    reason: initialValue?.reason ?? '',
+  }));
   const [errors, setErrors] = useState<FormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);

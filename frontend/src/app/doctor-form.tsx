@@ -1,5 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
+import type * as ImagePicker from 'expo-image-picker';
 
 import { Button } from '@/components/button';
 import { DoctorForm } from '@/components/doctor-form';
@@ -58,15 +59,31 @@ export default function DoctorFormScreen() {
 
   // DoctorForm owns the submitting state and surfaces any error it throws, so
   // this handler only has to perform the write and navigate.
-  const handleSubmit = async (input: DoctorInput) => {
+  const handleSubmit = async (input: DoctorInput, image?: ImagePicker.ImagePickerAsset) => {
     if (!token) return;
 
+    const uploadImage = async (doctorId: string) => {
+      if (!image) return true;
+      try {
+        await doctorsApi.uploadImage(doctorId, image, token);
+        return true;
+      } catch {
+        Alert.alert(
+          'Doctor saved without image',
+          'The doctor was added, but Cloudinary rejected the image upload. Check the Cloudinary settings and try uploading the image again.'
+        );
+        return false;
+      }
+    };
+
     if (doctor) {
-      await doctorsApi.update(doctor.id, input, token);
+      const saved = await doctorsApi.update(doctor.id, input, token);
+      await uploadImage(saved.id);
       // Back to the profile the admin came from, which refetches on focus.
       router.back();
     } else {
-      await doctorsApi.create(input, token);
+      const saved = await doctorsApi.create(input, token);
+      await uploadImage(saved.id);
       router.replace('/doctors');
     }
   };

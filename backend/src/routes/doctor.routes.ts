@@ -6,10 +6,12 @@ import {
   getById,
   list,
   remove,
+  uploadImage,
   update,
 } from "../controllers/doctor.controller";
 import { requireAdmin } from "../middleware/requireAdmin";
 import { requireAuth } from "../middleware/requireAuth";
+import { doctorImageUpload } from "../middleware/upload";
 
 const router = Router();
 
@@ -32,6 +34,7 @@ router.get("/:id/availability", requireAuth, getAvailability);
  */
 router.post("/", requireAuth, requireAdmin, create);
 router.put("/:id", requireAuth, requireAdmin, update);
+router.put("/:id/image", requireAuth, requireAdmin, doctorImageUpload.single("image"), uploadImage);
 router.delete("/:id", requireAuth, requireAdmin, remove);
 
 export default router;

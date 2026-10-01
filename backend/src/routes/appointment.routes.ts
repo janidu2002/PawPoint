@@ -4,8 +4,11 @@ import {
   adminList,
   cancel,
   create,
+  getById,
   list,
+  remove,
   setStatus,
+  update,
 } from "../controllers/appointment.controller";
 import { requireAdmin } from "../middleware/requireAdmin";
 import { requireAuth } from "../middleware/requireAuth";
@@ -24,14 +27,12 @@ router.get("/", requireAuth, list);
 router.post("/", requireAuth, create);
 router.post("/:id/cancel", requireAuth, cancel);
 
-/**
- * The clinic-wide queue, plus status changes.
- *
- * Declared ahead of `/:id/status` so the literal path is matched before any
- * parameterised one could swallow it. `requireAdmin` depends on `requireAuth`
- * having set `req.userId`, so it always follows it rather than replacing it.
- */
+/** The clinic-wide queue must be declared before the parameterised `/:id` route. */
 router.get("/admin", requireAuth, requireAdmin, adminList);
 router.patch("/:id/status", requireAuth, requireAdmin, setStatus);
+
+router.get("/:id", requireAuth, getById);
+router.put("/:id", requireAuth, update);
+router.delete("/:id", requireAuth, remove);
 
 export default router;

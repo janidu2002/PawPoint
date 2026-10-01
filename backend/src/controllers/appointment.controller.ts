@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import type { Types } from "mongoose";
+import mongoose, { type Types } from "mongoose";
 
 import { Appointment, type AppointmentDocument } from "../models/Appointment";
 import { Doctor } from "../models/Doctor";
@@ -127,6 +127,12 @@ const toOwnerSummary = (user: { _id: unknown; name: string }): OwnerSummaryDto =
 const asString = (value: unknown): string =>
   typeof value === "string" ? value.trim() : "";
 
+const requireObjectId = (value: string, field: string): void => {
+  if (!mongoose.isValidObjectId(value)) {
+    throw ApiError.badRequest("Validation failed", { [field]: "Malformed identifier" });
+  }
+};
+
 /**
  * Validates and normalises a booking payload.
  *
@@ -198,6 +204,7 @@ export const create = async (req: Request, res: Response): Promise<void> => {
   }
 
   const input = parseAppointmentInput(req.body);
+  requireObjectId(input.doctorId, "doctorId");
 
   const doctor = await Doctor.findById(input.doctorId);
 
@@ -289,6 +296,104 @@ export const create = async (req: Request, res: Response): Promise<void> => {
     message: "Appointment requested",
     data: { ...toAppointmentDto(appointment), doctor: toDoctorSummary(doctor) },
   });
+};
+
+/** GET /api/appointments/:id — an owner or admin may view one booking. */
+export const getById = async (req: Request, res: Response): Promise<void> => {
+  const id = asString(req.params.id);
+  requireObjectId(id, "id");
+  const userId = (req as Request & { userId?: string }).userId;
+  if (!userId) throw ApiError.unauthorized();
+
+  const appointment = await Appointment.findById(id).lean();
+  if (!appointment) throw ApiError.notFound("Appointment not found");
+
+  const requester = await User.findById(userId).select("isAdmin").lean();
+  if (!requester?.isAdmin && appointment.userId.toString() !== userId) {
+    throw ApiError.notFound("Appointment not found");
+  }
+
+  const doctor = await Doctor.findById(appointment.doctorId).lean();
+  const owner = requester?.isAdmin
+    ? await User.findById(appointment.userId).select("_id name").lean()
+    : undefined;
+
+  res.status(200).json({
+    success: true,
+    message: "Appointment retrieved",
+    data: toAppointmentListItem(
+      appointment as unknown as LeanAppointment,
+      doctor ? toDoctorSummary(doctor) : undefined,
+      owner ? toOwnerSummary(owner) : undefined
+    ),
+  });
+};
+
+/** PUT /api/appointments/:id — owners may reschedule pending bookings. */
+export const update = async (req: Request, res: Response): Promise<void> => {
+  const id = asString(req.params.id);
+  requireObjectId(id, "id");
+  const userId = (req as Request & { userId?: string }).userId;
+  if (!userId) throw ApiError.unauthorized();
+
+  const appointment = await Appointment.findOne({ _id: id, userId });
+  if (!appointment) throw ApiError.notFound("Appointment not found");
+  if (appointment.status !== "Pending") {
+    throw ApiError.conflict("Only pending appointments can be rescheduled");
+  }
+
+  const input = parseAppointmentInput(req.body);
+  requireObjectId(input.doctorId, "doctorId");
+  const doctor = await Doctor.findById(input.doctorId);
+  if (!doctor) throw ApiError.notFound("Doctor not found");
+
+  const today = toIsoDate(new Date());
+  if (input.appointmentDate < today) {
+    throw ApiError.badRequest("Validation failed", { appointmentDate: "Date cannot be in the past" });
+  }
+
+  const availability = computeAvailability({
+    date: input.appointmentDate,
+    startTime: doctor.startTime,
+    endTime: doctor.endTime,
+    availableDays: doctor.availableDays as Weekday[],
+    blockedTimes: [],
+    ...(input.appointmentDate === today ? { minStartTime: toTimeOfDay(new Date()) } : {}),
+  });
+  const slot = availability?.slots.find((candidate) => candidate.time === input.appointmentTime);
+  if (!slot) throw ApiError.badRequest("Validation failed", { appointmentTime: "Choose an available time slot" });
+
+  const conflict = await Appointment.exists({
+    _id: { $ne: appointment._id },
+    doctorId: input.doctorId,
+    appointmentDate: input.appointmentDate,
+    appointmentTime: input.appointmentTime,
+    status: { $in: BLOCKING_STATUSES },
+  });
+  if (conflict) throw ApiError.conflict("That time slot has just been taken");
+
+  Object.assign(appointment, input);
+  await appointment.save();
+  res.status(200).json({
+    success: true,
+    message: "Appointment rescheduled",
+    data: { ...toAppointmentDto(appointment), doctor: toDoctorSummary(doctor) },
+  });
+};
+
+/** DELETE /api/appointments/:id — owners may remove cancelled bookings. */
+export const remove = async (req: Request, res: Response): Promise<void> => {
+  const id = asString(req.params.id);
+  requireObjectId(id, "id");
+  const userId = (req as Request & { userId?: string }).userId;
+  if (!userId) throw ApiError.unauthorized();
+  const appointment = await Appointment.findOne({ _id: id, userId });
+  if (!appointment) throw ApiError.notFound("Appointment not found");
+  if (appointment.status !== "Cancelled") {
+    throw ApiError.conflict("Only cancelled appointments can be deleted");
+  }
+  await appointment.deleteOne();
+  res.status(204).send();
 };
 
 /**

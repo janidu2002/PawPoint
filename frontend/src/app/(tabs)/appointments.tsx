@@ -144,6 +144,7 @@ export default function AppointmentsScreen() {
         renderItem={({ item }) => (
           <AppointmentCard
             appointment={item}
+            onPress={() => router.push({ pathname: '/appointment/[id]' as never, params: { id: item.id } })}
             onCancel={handleCancel}
             isCancelling={cancellingId === item.id}
           />

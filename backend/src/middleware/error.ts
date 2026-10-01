@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import mongoose from "mongoose";
+import multer from "multer";
 
 import { env } from "../config/env";
 import { SLOT_CONFLICT_INDEX } from "../models/Appointment";
@@ -38,6 +39,14 @@ export const errorHandler = (
       success: false,
       message: err.message,
       ...(err.errors ? { errors: err.errors } : {}),
+    });
+    return;
+  }
+
+  if (err instanceof multer.MulterError) {
+    res.status(400).json({
+      success: false,
+      message: err.code === "LIMIT_FILE_SIZE" ? "Image must be smaller than 5 MB" : "Invalid image upload",
     });
     return;
   }

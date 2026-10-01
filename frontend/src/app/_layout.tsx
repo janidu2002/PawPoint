@@ -82,6 +82,7 @@ function RootNavigator() {
           <Stack.Screen name="book/[doctorId]" />
           <Stack.Screen name="doctor/[id]" />
           <Stack.Screen name="doctor-form" />
+          <Stack.Screen name="appointment/[id]" />
         </Stack.Protected>
 
         <Stack.Protected guard={status === 'signed-out'}>

@@ -10,7 +10,7 @@ import apiRouter from "./routes";
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "8mb" }));
 
 app.get("/", (_req, res) => {
   res.status(200).json({

@@ -7,6 +7,7 @@ import { computeAvailability, isValidDate, toIsoDate, toTimeOfDay } from "../uti
 import { BLOCKING_STATUSES } from "../types/appointment";
 import { WEEKDAYS } from "../types/doctor";
 import type { DoctorDto, DoctorInput, Weekday } from "../types/doctor";
+import { uploadDoctorImage } from "../config/cloudinary";
 
 /**
  * Maps a doctor document to the client-facing shape.
@@ -32,6 +33,7 @@ const toDoctorDto = (doctor: DoctorDocument): DoctorDto => ({
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MAX_DESCRIPTION = 1000;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 /**
  * Validates and normalises a doctor payload.
@@ -279,6 +281,46 @@ export const update = async (req: Request, res: Response): Promise<void> => {
   res.status(200).json({
     success: true,
     message: "Doctor updated",
+    data: toDoctorDto(doctor),
+  });
+};
+
+/** PUT /api/doctors/:id/image — accepts one validated multipart image file. */
+export const uploadImage = async (req: Request, res: Response): Promise<void> => {
+  const doctor = await Doctor.findById(req.params.id);
+  if (!doctor) throw ApiError.notFound("Doctor not found");
+
+  const file = (req as Request & { file?: Express.Multer.File }).file;
+  if (!file) throw ApiError.badRequest("Invalid image", { image: "Choose an image to upload" });
+
+  const bytes = file.buffer;
+  const mime = file.mimetype;
+  if (bytes.length === 0 || bytes.length > MAX_IMAGE_BYTES) {
+    throw ApiError.badRequest("Invalid image", { image: "Image must be smaller than 5 MB" });
+  }
+
+  const signatures: Record<string, boolean> = {
+    "image/jpeg": bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff,
+    "image/png": bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])),
+    "image/webp": bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WEBP",
+  };
+  if (!signatures[mime]) {
+    throw ApiError.badRequest("Invalid image", { image: "The file contents do not match its image type" });
+  }
+
+  try {
+    doctor.image = await uploadDoctorImage(bytes, doctor._id.toString());
+  } catch (error) {
+    console.error("Cloudinary doctor image upload failed:", error);
+    throw ApiError.badRequest("Image upload failed", {
+      image: "Cloudinary rejected the image. Check the Cloudinary account configuration and try again.",
+    });
+  }
+  await doctor.save();
+
+  res.status(200).json({
+    success: true,
+    message: "Doctor image uploaded",
     data: toDoctorDto(doctor),
   });
 };

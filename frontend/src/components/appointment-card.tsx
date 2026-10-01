@@ -6,7 +6,7 @@ import { font } from '@/constants/fonts';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { formatDateLabel } from '@/lib/date';
 import type { Appointment } from '@/types/appointment';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 export interface AppointmentCardProps {
   appointment: Appointment;
@@ -17,6 +17,7 @@ export interface AppointmentCardProps {
   ownerName?: string;
   /** Admin queue only. The status actions valid for this row's current status. */
   actions?: React.ReactNode;
+  onPress?: () => void;
 }
 
 /**
@@ -31,6 +32,7 @@ export function AppointmentCard({
   isCancelling = false,
   ownerName,
   actions,
+  onPress,
 }: AppointmentCardProps) {
   const isCancellable =
     onCancel !== undefined && appointment.status === 'Pending' && !isCancelling;
@@ -42,7 +44,7 @@ export function AppointmentCard({
     ? `Booked by ${ownerName}`
     : appointment.doctor?.specialization ?? 'Appointment';
 
-  return (
+  const content = (
     <Card style={styles.card}>
       <View style={styles.header}>
         <DoctorAvatar
@@ -91,6 +93,7 @@ export function AppointmentCard({
       ) : null)}
     </Card>
   );
+  return onPress ? <Pressable onPress={onPress} accessibilityRole="button">{content}</Pressable> : content;
 }
 
 const styles = StyleSheet.create({

@@ -48,6 +48,11 @@ const optionalEmail = (value: string | undefined): string | undefined => {
   return trimmed || undefined;
 };
 
+const optionalValue = (value: string | undefined): string | undefined => {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
+};
+
 export const env = {
   port: Number(process.env.PORT) || 5000,
   mongoUri: requireString("MONGO_URI", process.env.MONGO_URI),
@@ -58,4 +63,7 @@ export const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   /** Optional. See the note above before using this outside development. */
   adminEmail: optionalEmail(process.env.ADMIN_EMAIL),
+  cloudinaryCloudName: optionalValue(process.env.CLOUDINARY_CLOUD_NAME),
+  cloudinaryApiKey: optionalValue(process.env.CLOUDINARY_API_KEY),
+  cloudinaryApiSecret: optionalValue(process.env.CLOUDINARY_API_SECRET),
 } as const;

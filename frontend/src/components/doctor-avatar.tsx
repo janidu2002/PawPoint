@@ -31,8 +31,7 @@ export const initialsOf = (name: string): string => {
 
 /**
  * Doctor portrait, falling back to initials on a teal-soft circle when there is
- * no image URL. Uploads are out of scope for this phase, so the fallback is the
- * normal case rather than an edge case.
+ * no image URL.
  */
 export function DoctorAvatar({ name, image, size = 56 }: DoctorAvatarProps) {
   if (image) {
