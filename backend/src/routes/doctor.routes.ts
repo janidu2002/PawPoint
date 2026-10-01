@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import {
   create,
+  getAvailability,
   getById,
   list,
   remove,
@@ -18,6 +19,9 @@ const router = Router();
  */
 router.get("/", requireAuth, list);
 router.get("/:id", requireAuth, getById);
+/** Nested under the doctor because availability derives from that doctor's
+ *  schedule. Matches on segment count, so it cannot shadow `/:id`. */
+router.get("/:id/availability", requireAuth, getAvailability);
 
 /**
  * Writes require admin. Enforced here rather than by hiding the UI, so the
