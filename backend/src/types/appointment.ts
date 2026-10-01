@@ -35,10 +35,11 @@ export type PetType = (typeof PET_TYPES)[number];
 export const SLOT_MINUTES = 15;
 
 /**
- * Request body for POST /api/appointments, which arrives in the next phase.
+ * Request body for POST /api/appointments.
  *
  * `userId` is deliberately absent: the controller takes it from the JWT so a
- * client can never book on someone else's behalf.
+ * client can never book on someone else's behalf. `status` is absent for the
+ * same reason - every booking starts as Pending.
  */
 export interface AppointmentInput {
   doctorId: string;
@@ -51,3 +52,44 @@ export interface AppointmentInput {
   appointmentTime: string;
   reason: string;
 }
+
+/** The slice of a Doctor an appointment needs to be recognisable in a list. */
+export interface DoctorSummaryDto {
+  id: string;
+  name: string;
+  specialization: string;
+  image: string | null;
+}
+
+/** An appointment as sent to the client. */
+export interface AppointmentDto {
+  id: string;
+  userId: string;
+  doctorId: string;
+  /** Present whenever the controller populates the reference. */
+  doctor?: DoctorSummaryDto;
+  petName: string;
+  petType: PetType;
+  petBreed: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  reason: string;
+  status: AppointmentStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Which status each appointment may move to.
+ *
+ * Enforced server-side so a bad request cannot skip a step - jumping straight
+ * from Pending to Completed would silently skip the clinic confirming the slot.
+ * Completed and Cancelled are absent because neither can change afterwards.
+ */
+export const STATUS_TRANSITIONS: Record<AppointmentStatus, AppointmentStatus[]> = {
+  Pending: ["Confirmed", "Cancelled"],
+  Confirmed: ["Completed", "Cancelled"],
+  Completed: [],
+  Cancelled: [],
+};
+

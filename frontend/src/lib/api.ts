@@ -1,4 +1,10 @@
 import type { ApiErrorBody, ApiResponse } from '@/types/api';
+import type {
+  Appointment,
+  AppointmentInput,
+  AppointmentStatus,
+  Availability,
+} from '@/types/appointment';
 import type { Doctor, DoctorInput } from '@/types/doctor';
 import type { AuthResponse, LoginInput, RegisterInput, User } from '@/types/user';
 
@@ -139,6 +145,17 @@ export const doctorsApi = {
     return request<Doctor>(`/doctors/${id}`, { token });
   },
 
+  /**
+   * Concrete bookable times for one date. `date` is "YYYY-MM-DD"; the server
+   * rejects a past date with 400 and an unknown doctor with 404.
+   */
+  getAvailability(id: string, date: string, token: string): Promise<Availability> {
+    return request<Availability>(
+      `/doctors/${id}/availability?date=${encodeURIComponent(date)}`,
+      { token },
+    );
+  },
+
   /** Admin only. */
   create(input: DoctorInput, token: string): Promise<Doctor> {
     return request<Doctor>('/doctors', { method: 'POST', body: input, token });
@@ -155,6 +172,29 @@ export const doctorsApi = {
   /** Admin only. Resolves once the server confirms with 204. */
   remove(id: string, token: string): Promise<void> {
     return requestEmpty(`/doctors/${id}`, { token });
+  },
+};
+
+/**
+ * Appointments.
+ *
+ * Booking is open to any signed-in user; the server takes the owner from the
+ * token, so there is no userId to send. Status changes are admin-only and throw
+ * 403 for everyone else.
+ */
+export const appointmentsApi = {
+  /** Creates a Pending appointment. Throws ApiError 409 if the slot was just taken. */
+  create(input: AppointmentInput, token: string): Promise<Appointment> {
+    return request<Appointment>('/appointments', { method: 'POST', body: input, token });
+  },
+
+  /** Admin only. The server rejects a transition the current status forbids. */
+  setStatus(id: string, status: AppointmentStatus, token: string): Promise<Appointment> {
+    return request<Appointment>(`/appointments/${id}/status`, {
+      method: 'PATCH',
+      body: { status },
+      token,
+    });
   },
 };
 

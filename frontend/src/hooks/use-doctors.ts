@@ -2,16 +2,9 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 
 import { useAuth } from '@/context/AuthContext';
-import { ApiError, doctorsApi } from '@/lib/api';
+import { doctorsApi } from '@/lib/api';
 import type { Doctor } from '@/types/doctor';
-
-interface AsyncState<T> {
-  data: T | null;
-  error: string | null;
-  isLoading: boolean;
-  /** Re-runs the fetch, for pull-to-refresh and after a write. */
-  refetch: () => Promise<void>;
-}
+import { messageFor, type AsyncState } from './use-async-state';
 
 /**
  * Doctor reads.
@@ -21,9 +14,6 @@ interface AsyncState<T> {
  * existing data stays mounted during a refetch so returning to the list does
  * not flash an empty screen.
  */
-
-const messageFor = (error: unknown): string =>
-  error instanceof ApiError ? error.message : 'Something went wrong. Please try again.';
 
 export function useDoctors(): AsyncState<Doctor[]> {
   const { token } = useAuth();

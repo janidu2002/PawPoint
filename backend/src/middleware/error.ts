@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import mongoose from "mongoose";
 
 import { env } from "../config/env";
+import { SLOT_CONFLICT_INDEX } from "../models/Appointment";
 import { ApiError } from "../utils/ApiError";
 
 /**
@@ -41,15 +42,23 @@ export const errorHandler = (
     return;
   }
 
-  // Duplicate key: the unique index rejected a duplicate email.
+  // Duplicate key: a unique index rejected the write.
   if (
     typeof err === "object" &&
     err !== null &&
     (err as { code?: number }).code === 11000
   ) {
+    // Two indexes can raise this, and they mean unrelated things. Reporting the
+    // email message for a double-booking would send the client looking for a
+    // signup bug instead of re-picking a time.
+    const message = String((err as Error).message);
+    const slotTaken = message.includes(SLOT_CONFLICT_INDEX);
+
     res.status(409).json({
       success: false,
-      message: "An account with that email already exists",
+      message: slotTaken
+        ? "That time slot has just been taken"
+        : "An account with that email already exists",
     });
     return;
   }

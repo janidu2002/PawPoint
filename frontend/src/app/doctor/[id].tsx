@@ -7,7 +7,8 @@ import { Card } from '@/components/card';
 import { DoctorAvatar } from '@/components/doctor-avatar';
 import { LoadingIndicator } from '@/components/loading-indicator';
 import { Screen } from '@/components/screen';
-import { formatDays } from '@/components/weekday-picker';import { font } from '@/constants/fonts';
+import { formatDays } from '@/components/weekday-picker';
+import { font } from '@/constants/fonts';
 import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useDoctor } from '@/hooks/use-doctors';
@@ -70,7 +71,7 @@ export default function DoctorDetailScreen() {
 
     Alert.alert(
       `Delete ${doctor.name}?`,
-      'This removes the vet from PawPoint. Existing appointments are not affected yet.',
+      'A vet with appointments cannot be deleted until those appointments are cancelled.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -127,9 +128,7 @@ export default function DoctorDetailScreen() {
       <View style={styles.actions}>
         <Button
           label="Book appointment"
-          onPress={() => {}}
-          // Booking arrives with the appointments phase; the button stays
-          // visible so the layout does not shift when it is wired up.
+          onPress={() => router.push(`/book/${doctor.id}`)}
         />
 
         {isAdmin ? (

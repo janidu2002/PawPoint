@@ -107,6 +107,12 @@ const appointmentSchema = new Schema<IAppointment>(
 appointmentSchema.index({ doctorId: 1, appointmentDate: 1, status: 1 });
 
 /**
+ * Exported so the global error handler can tell this conflict apart from a
+ * duplicate email when Mongo reports a 11000, which carries no other context.
+ */
+export const SLOT_CONFLICT_INDEX = "appointment_slot_blocking_unique";
+
+/**
  * The real double-booking guard.
  *
  * A check-then-insert in the controller would still let two concurrent requests
@@ -118,7 +124,7 @@ appointmentSchema.index(
   { doctorId: 1, appointmentDate: 1, appointmentTime: 1 },
   {
     unique: true,
-    name: "appointment_slot_blocking_unique",
+    name: SLOT_CONFLICT_INDEX,
     partialFilterExpression: { status: { $in: BLOCKING_STATUSES } },
   }
 );

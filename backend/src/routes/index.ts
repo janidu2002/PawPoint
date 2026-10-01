@@ -1,5 +1,6 @@
 import { Router } from "express";
 
+import appointmentRoutes from "./appointment.routes";
 import authRoutes from "./auth.routes";
 import doctorRoutes from "./doctor.routes";
 
@@ -9,6 +10,7 @@ import doctorRoutes from "./doctor.routes";
  */
 const router = Router();
 
+router.use("/appointments", appointmentRoutes);
 router.use("/auth", authRoutes);
 router.use("/doctors", doctorRoutes);
 

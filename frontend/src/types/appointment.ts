@@ -1,4 +1,4 @@
-import type { Doctor } from './doctor';
+import type { Doctor, Weekday } from './doctor';
 
 export type AppointmentStatus = 'Pending' | 'Confirmed' | 'Completed' | 'Cancelled';
 
@@ -38,4 +38,31 @@ export interface AppointmentInput {
   appointmentDate: string;
   appointmentTime: string;
   reason: string;
+}
+
+/** One bookable time for a given doctor on a given date. */
+export interface Slot {
+  /** 24-hour "HH:mm". */
+  time: string;
+  /**
+   * False when another pet already holds the slot. The server deliberately
+   * reports only this, never who booked it.
+   */
+  available: boolean;
+}
+
+/** `GET /api/doctors/:id/availability?date=YYYY-MM-DD` */
+export interface Availability {
+  doctorId: string;
+  date: string;
+  weekday: Weekday;
+  startTime: string;
+  endTime: string;
+  /** Empty when the vet does not work that weekday. */
+  slots: Slot[];
+}
+
+/** Payload for PATCH /api/appointments/:id/status. Admin only. */
+export interface AppointmentStatusUpdate {
+  status: AppointmentStatus;
 }
