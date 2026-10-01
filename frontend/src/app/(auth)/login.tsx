@@ -28,6 +28,14 @@ export default function LoginScreen() {
     setFieldErrors({});
     setFormError(null);
 
+    const localErrors: FormErrors<LoginInput> = {};
+    if (!email.trim()) localErrors.email = 'Email is required';
+    if (!password) localErrors.password = 'Password is required';
+    if (Object.keys(localErrors).length > 0) {
+      setFieldErrors(localErrors);
+      return;
+    }
+
     try {
       await login({ email, password });
       router.replace('/home');

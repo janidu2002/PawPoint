@@ -11,7 +11,7 @@ import {
 
 import { ApiError, authApi } from '@/lib/api';
 import { tokenStorage } from '@/lib/token-storage';
-import type { LoginInput, RegisterInput, User } from '@/types/user';
+import type { LoginInput, PasswordUpdateInput, ProfileUpdateInput, RegisterInput, User } from '@/types/user';
 
 /**
  * Session state for the whole app.
@@ -32,6 +32,9 @@ interface AuthContextValue {
   login: (input: LoginInput) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
+  updateProfile: (input: ProfileUpdateInput) => Promise<void>;
+  deleteProfile: () => Promise<void>;
+  updatePassword: (input: PasswordUpdateInput) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -127,9 +130,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('signed-out');
   }, []);
 
+  const updateProfile = useCallback(async (input: ProfileUpdateInput) => {
+    if (!token) return;
+    const updated = await authApi.updateProfile(input, token);
+    if (!mounted.current) return;
+    setUser(updated);
+  }, [token]);
+
+  const deleteProfile = useCallback(async () => {
+    if (!token) return;
+    await authApi.deleteProfile(token);
+    await tokenStorage.clear().catch(() => {});
+    if (!mounted.current) return;
+    setToken(null);
+    setUser(null);
+    setStatus('signed-out');
+  }, [token]);
+
+  const updatePassword = useCallback(async (input: PasswordUpdateInput) => {
+    if (!token) return;
+    await authApi.updatePassword(input, token);
+  }, [token]);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ user, token, status, isSubmitting, login, register, logout }),
-    [user, token, status, isSubmitting, login, register, logout],
+    () => ({ user, token, status, isSubmitting, login, register, logout, updateProfile, deleteProfile, updatePassword }),
+    [user, token, status, isSubmitting, login, register, logout, updateProfile, deleteProfile, updatePassword],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

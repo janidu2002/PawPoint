@@ -33,6 +33,8 @@ const toDoctorDto = (doctor: DoctorDocument): DoctorDto => ({
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MAX_DESCRIPTION = 1000;
+const TEXT_PATTERN = /^[\p{L}][\p{L}\d\s.,&()/'-]*$/u;
+const PHONE_PATTERN = /^\+?[0-9][0-9\s().-]{6,19}$/;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 /**
@@ -82,10 +84,13 @@ const parseDoctorInput = (body: unknown): DoctorInput => {
 
   const errors: Record<string, string> = {};
 
-  if (name.length < 2) errors.name = "Name must be at least 2 characters";
-  if (!specialization) errors.specialization = "Specialization is required";
-  if (!qualification) errors.qualification = "Qualification is required";
-  if (!phoneNumber) errors.phoneNumber = "Phone number is required";
+  if (name.length < 2 || !TEXT_PATTERN.test(name)) errors.name = "Use a valid text value";
+  if (!specialization || !TEXT_PATTERN.test(specialization)) errors.specialization = "Use a valid text value";
+  if (!qualification || !TEXT_PATTERN.test(qualification)) errors.qualification = "Use a valid text value";
+  const phoneDigits = phoneNumber.replace(/\D/g, "");
+  if (!PHONE_PATTERN.test(phoneNumber) || phoneDigits.length < 7 || phoneDigits.length > 15) {
+    errors.phoneNumber = "Enter a valid phone number";
+  }
 
   if (availableDays.length === 0) {
     errors.availableDays = "Select at least one available day";

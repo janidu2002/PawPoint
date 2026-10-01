@@ -18,6 +18,17 @@ export interface LoginInput {
   password: string;
 }
 
+export interface ProfileUpdateInput {
+  name: string;
+  email: string;
+}
+
+export interface PasswordUpdateInput {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
 export interface RegisterInput {
   name: string;
   email: string;

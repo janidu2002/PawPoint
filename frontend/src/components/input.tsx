@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -63,12 +64,15 @@ export function Input({
   testID,
 }: InputProps) {
   const [focused, setFocused] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const canTogglePassword = secureTextEntry && !multiline;
 
   return (
     <View style={styles.container}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
 
-      <TextInput
+      <View style={canTogglePassword ? styles.passwordRow : undefined}>
+        <TextInput
         testID={testID}
         value={value}
         onChangeText={onChangeText}
@@ -76,7 +80,7 @@ export function Input({
         placeholderTextColor={Colors.light.placeholder}
         // Links the visible label to the field for screen readers.
         accessibilityLabel={label}
-        secureTextEntry={secureTextEntry}
+        secureTextEntry={secureTextEntry && !visible}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         autoComplete={autoComplete}
@@ -93,12 +97,24 @@ export function Input({
         onBlur={() => setFocused(false)}
         style={[
           styles.input,
+          canTogglePassword && styles.passwordInput,
           multiline && { height: InputHeight * rows, paddingTop: Spacing.sm, paddingBottom: Spacing.sm },
           focused && styles.focused,
           Boolean(error) && styles.inputError,
           !editable && styles.inputDisabled,
         ]}
-      />
+        />
+        {canTogglePassword ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={visible ? 'Hide password' : 'Show password'}
+            onPress={() => setVisible((current) => !current)}
+            style={styles.passwordToggle}
+          >
+            <Text style={styles.passwordToggleText}>{visible ? 'Hide' : 'Show'}</Text>
+          </Pressable>
+        ) : null}
+      </View>
 
       {error ? (
         <Text style={styles.error} accessibilityRole="alert">
@@ -149,6 +165,25 @@ const styles = StyleSheet.create({
   },
   inputDisabled: {
     opacity: 0.6,
+  },
+  passwordRow: {
+    position: 'relative',
+  },
+  passwordInput: {
+    paddingRight: 72,
+  },
+  passwordToggle: {
+    position: 'absolute',
+    right: Spacing.sm,
+    top: 0,
+    height: InputHeight,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.sm,
+  },
+  passwordToggleText: {
+    ...font('semiBold'),
+    color: Colors.light.primaryHover,
+    fontSize: Typography.labelMd.fontSize,
   },
   error: {
     ...font('medium'),

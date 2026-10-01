@@ -10,7 +10,7 @@ import type {
   Availability,
 } from '@/types/appointment';
 import type { Doctor, DoctorInput } from '@/types/doctor';
-import type { AuthResponse, LoginInput, RegisterInput, User } from '@/types/user';
+import type { AuthResponse, LoginInput, PasswordUpdateInput, ProfileUpdateInput, RegisterInput, User } from '@/types/user';
 
 /**
  * The one place the app talks HTTP.
@@ -122,6 +122,18 @@ export const authApi = {
   /** Validates a stored token and returns the owning user. */
   me(token: string): Promise<User> {
     return request<User>('/auth/me', { token });
+  },
+
+  updateProfile(input: ProfileUpdateInput, token: string): Promise<User> {
+    return request<User>('/auth/profile', { method: 'PUT', body: input, token });
+  },
+
+  deleteProfile(token: string): Promise<void> {
+    return requestEmpty('/auth/profile', { method: 'DELETE', token });
+  },
+
+  updatePassword(input: PasswordUpdateInput, token: string): Promise<void> {
+    return request<void>('/auth/password', { method: 'PUT', body: input, token });
   },
 };
 

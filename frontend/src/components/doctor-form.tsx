@@ -10,6 +10,7 @@ import { font } from '@/constants/fonts';
 import { Colors, Radius, Spacing, Typography } from '@/constants/theme';
 import { ApiError } from '@/lib/api';
 import type { Doctor, DoctorInput, Weekday } from '@/types/doctor';
+import { isValidPhone, isValidTextName } from '@/lib/validation';
 
 /** Mirrors the server's TIME_PATTERN so bad input never needs a round trip. */
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -71,10 +72,10 @@ const fromDoctor = (doctor: Doctor): FormState => ({
 const validate = (state: FormState): FormErrors => {
   const errors: FormErrors = {};
 
-  if (state.name.trim().length < 2) errors.name = 'Name must be at least 2 characters';
-  if (!state.specialization.trim()) errors.specialization = 'Specialization is required';
-  if (!state.qualification.trim()) errors.qualification = 'Qualification is required';
-  if (!state.phoneNumber.trim()) errors.phoneNumber = 'Phone number is required';
+  if (state.name.trim().length < 2 || !isValidTextName(state.name)) errors.name = 'Use letters, spaces, apostrophes, or hyphens only';
+  if (!state.specialization.trim() || !isValidTextName(state.specialization)) errors.specialization = 'Use a valid text value';
+  if (!state.qualification.trim() || !isValidTextName(state.qualification)) errors.qualification = 'Use a valid text value';
+  if (!isValidPhone(state.phoneNumber)) errors.phoneNumber = 'Enter a valid phone number';
 
   if (state.availableDays.length === 0) {
     errors.availableDays = 'Select at least one available day';

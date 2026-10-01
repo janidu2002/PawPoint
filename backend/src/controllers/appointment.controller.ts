@@ -35,6 +35,7 @@ import type { Weekday } from "../types/doctor";
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const MAX_REASON = 1000;
+const TEXT_PATTERN = /^[\p{L}][\p{L}\d\s.'-]*$/u;
 
 /**
  * Maps an appointment to the client-facing shape.
@@ -158,9 +159,9 @@ const parseAppointmentInput = (body: unknown) => {
   const errors: Record<string, string> = {};
 
   if (!doctorId) errors.doctorId = "Doctor is required";
-  if (!petName) errors.petName = "Pet name is required";
-  if (!petBreed) errors.petBreed = "Pet breed is required";
-  if (!reason) errors.reason = "Reason is required";
+  if (!petName || !TEXT_PATTERN.test(petName)) errors.petName = "Pet name must contain letters";
+  if (!petBreed || !TEXT_PATTERN.test(petBreed)) errors.petBreed = "Pet breed must contain letters";
+  if (!reason || !/\p{L}/u.test(reason)) errors.reason = "Enter a reason using text";
   else if (reason.length > MAX_REASON) {
     errors.reason = `Reason must be ${MAX_REASON} characters or fewer`;
   }

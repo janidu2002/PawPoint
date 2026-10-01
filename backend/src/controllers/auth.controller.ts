@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 
 import { env } from "../config/env";
 import { User, type UserDocument } from "../models/User";
+import { Appointment } from "../models/Appointment";
 import { ApiError } from "../utils/ApiError";
 import type {
   AuthResult,
@@ -25,6 +26,7 @@ const TOKEN_TTL = "7d";
  */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 8;
+const PERSON_NAME_PATTERN = /^[\p{L}][\p{L}\s.'-]*$/u;
 
 const asString = (value: unknown): string =>
   typeof value === "string" ? value.trim() : "";
@@ -62,7 +64,9 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
   const errors: Record<string, string> = {};
 
-  if (name.length < 2) errors.name = "Name must be at least 2 characters";
+  if (name.length < 2 || !PERSON_NAME_PATTERN.test(name)) {
+    errors.name = "Use letters, spaces, apostrophes, or hyphens only";
+  }
   if (!EMAIL_PATTERN.test(email)) errors.email = "Enter a valid email address";
   if (password.length < MIN_PASSWORD_LENGTH) {
     errors.password = `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
@@ -150,4 +154,61 @@ export const me = async (req: Request, res: Response): Promise<void> => {
   }
 
   res.status(200).json({ success: true, message: "Current user", data: toUserDto(user) });
+};
+
+/** PUT /api/auth/profile — updates only the authenticated user's details. */
+export const updateProfile = async (req: Request, res: Response): Promise<void> => {
+  const userId = (req as Request & { userId?: string }).userId;
+  if (!userId) throw ApiError.unauthorized();
+
+  const name = asString(req.body?.name);
+  const email = asString(req.body?.email).toLowerCase();
+  const errors: Record<string, string> = {};
+  if (name.length < 2 || !PERSON_NAME_PATTERN.test(name)) {
+    errors.name = "Use letters, spaces, apostrophes, or hyphens only";
+  }
+  if (!EMAIL_PATTERN.test(email)) errors.email = "Enter a valid email address";
+  if (Object.keys(errors).length > 0) throw ApiError.badRequest("Validation failed", errors);
+
+  const duplicate = await User.exists({ email, _id: { $ne: userId } });
+  if (duplicate) throw ApiError.conflict("An account with that email already exists");
+
+  const user = await User.findByIdAndUpdate(userId, { name, email }, { new: true, runValidators: true });
+  if (!user) throw ApiError.notFound("Account no longer exists");
+  res.status(200).json({ success: true, message: "Profile updated", data: toUserDto(user) });
+};
+
+/** DELETE /api/auth/profile — deletes the account and its owned appointments. */
+export const deleteProfile = async (req: Request, res: Response): Promise<void> => {
+  const userId = (req as Request & { userId?: string }).userId;
+  if (!userId) throw ApiError.unauthorized();
+
+  const user = await User.findByIdAndDelete(userId);
+  if (!user) throw ApiError.notFound("Account no longer exists");
+  await Appointment.deleteMany({ userId });
+  res.status(204).send();
+};
+
+/** PUT /api/auth/password — changes the authenticated user's password. */
+export const updatePassword = async (req: Request, res: Response): Promise<void> => {
+  const userId = (req as Request & { userId?: string }).userId;
+  if (!userId) throw ApiError.unauthorized();
+
+  const currentPassword = typeof req.body?.currentPassword === "string" ? req.body.currentPassword : "";
+  const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+  const confirmPassword = typeof req.body?.confirmPassword === "string" ? req.body.confirmPassword : "";
+  const errors: Record<string, string> = {};
+  if (!currentPassword) errors.currentPassword = "Current password is required";
+  if (newPassword.length < MIN_PASSWORD_LENGTH) errors.newPassword = `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
+  if (newPassword !== confirmPassword) errors.confirmPassword = "Passwords do not match";
+  if (Object.keys(errors).length > 0) throw ApiError.badRequest("Validation failed", errors);
+
+  const user = await User.findById(userId).select("+password");
+  if (!user || !(await bcrypt.compare(currentPassword, user.password))) {
+    throw ApiError.unauthorized("Current password is incorrect");
+  }
+
+  user.password = await bcrypt.hash(newPassword, SALT_ROUNDS);
+  await user.save();
+  res.status(200).json({ success: true, message: "Password updated" });
 };

@@ -10,6 +10,7 @@ import { Colors, Spacing, Typography } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { ApiError } from '@/lib/api';
 import type { FormErrors, RegisterInput } from '@/types/user';
+import { isValidPersonName } from '@/lib/validation';
 
 /**
  * Registration screen. Signs the user in on success rather than sending them to
@@ -28,6 +29,14 @@ export default function RegisterScreen() {
   const onSubmit = async () => {
     setFieldErrors({});
     setFormError(null);
+
+    const localErrors: FormErrors<RegisterInput> = {};
+    if (!isValidPersonName(name)) localErrors.name = 'Use letters, spaces, apostrophes, or hyphens only';
+    if (password.length < 8) localErrors.password = 'Password must be at least 8 characters';
+    if (Object.keys(localErrors).length > 0) {
+      setFieldErrors(localErrors);
+      return;
+    }
 
     // The server never receives confirmPassword, so this is the only check that
     // the two entries match.

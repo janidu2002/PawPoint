@@ -11,6 +11,7 @@ import { Colors, Spacing, Typography } from '@/constants/theme';
 export interface ScreenProps {
   children: React.ReactNode;
   title?: string;
+  titleAccessory?: React.ReactNode;
   subtitle?: string;
   /** Renders the body inside a ScrollView. Turn off for FlatList screens. */
   scroll?: boolean;
@@ -26,6 +27,7 @@ export interface ScreenProps {
 export function Screen({
   children,
   title,
+  titleAccessory,
   subtitle,
   scroll = true,
   bottomInset = 0,
@@ -35,7 +37,10 @@ export function Screen({
     <View style={[styles.body, style]}>
       {title ? (
         <View style={styles.header}>
-          <Text style={styles.title}>{title}</Text>
+          <View style={styles.titleRow}>
+            {titleAccessory}
+            <Text style={styles.title}>{title}</Text>
+          </View>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
       ) : null}
@@ -76,6 +81,11 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     paddingBottom: Spacing.lg,
     gap: Spacing.xs,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   title: {
     ...font('bold'),

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/button';
+import { DateCalendar } from '@/components/date-calendar';
 import { Input } from '@/components/input';
 import { LoadingIndicator } from '@/components/loading-indicator';
 import { font } from '@/constants/fonts';
@@ -11,6 +12,7 @@ import { formatDateLabel, isPastDate, isValidDate } from '@/lib/date';
 import { ApiError } from '@/lib/api';
 import type { AppointmentInput, PetType } from '@/types/appointment';
 import type { Doctor } from '@/types/doctor';
+import { isValidTextName } from '@/lib/validation';
 
 const PET_TYPES: readonly PetType[] = ['Dog', 'Cat', 'Bird', 'Rabbit', 'Other'];
 
@@ -88,10 +90,10 @@ export function BookingForm({
     else if (isPastDate(date)) next.appointmentDate = 'That date has already passed';
 
     if (!state.appointmentTime) next.appointmentTime = 'Pick a time';
-    if (!state.petName.trim()) next.petName = 'Pet name is required';
+    if (!isValidTextName(state.petName)) next.petName = 'Pet name must contain letters and no symbols or numbers';
     if (!state.petType) next.petType = 'Choose a pet type';
-    if (!state.petBreed.trim()) next.petBreed = 'Pet breed is required';
-    if (!state.reason.trim()) next.reason = 'Tell the clinic why you are booking';
+    if (!isValidTextName(state.petBreed)) next.petBreed = 'Pet breed must contain letters';
+    if (!state.reason.trim() || !/\p{L}/u.test(state.reason)) next.reason = 'Enter a reason using text';
 
     return next;
   };
@@ -148,6 +150,13 @@ export function BookingForm({
     <View style={styles.container}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>When</Text>
+
+        <DateCalendar
+          value={state.appointmentDate}
+          onChange={(value) => set('appointmentDate', value)}
+          error={errors.appointmentDate}
+          disabled={submitting}
+        />
 
         <Input
           label="Date"
