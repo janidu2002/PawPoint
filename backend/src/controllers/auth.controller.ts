@@ -51,8 +51,9 @@ const signToken = (user: UserDocument): string => {
 /**
  * POST /api/auth/register
  *
- * `isAdmin` is never read from the request body - registration always creates a
- * regular account, so a client cannot promote itself.
+ * `isAdmin` is never read from the request body, so a client cannot promote
+ * itself. Admin rights come only from `ADMIN_EMAIL` in the environment: see the
+ * note in config/env.ts about why that is a development convenience.
  */
 export const register = async (req: Request, res: Response): Promise<void> => {
   const name = asString(req.body?.name);
@@ -78,7 +79,14 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
   const hashed = await bcrypt.hash(password, SALT_ROUNDS);
 
-  const user = await User.create({ name, email, password: hashed });
+  // Set server-side only. `undefined` when ADMIN_EMAIL is unset, which leaves
+  // the schema default of false in place.
+  const user = await User.create({
+    name,
+    email,
+    password: hashed,
+    ...(env.adminEmail && email === env.adminEmail ? { isAdmin: true } : {}),
+  });
 
   const result: AuthResult = { token: signToken(user), user: toUserDto(user) };
 

@@ -1,4 +1,5 @@
 import type { ApiErrorBody, ApiResponse } from '@/types/api';
+import type { Doctor, DoctorInput } from '@/types/doctor';
 import type { AuthResponse, LoginInput, RegisterInput, User } from '@/types/user';
 
 /**
@@ -34,6 +35,11 @@ interface RequestOptions {
   body?: unknown;
   token?: string | null;
 }
+
+/** For 204 responses, where the contract is "no body" rather than "empty data". */
+const requestEmpty = async (path: string, options: RequestOptions = {}): Promise<void> => {
+  await request<undefined>(path, { ...options, method: options.method ?? 'DELETE' });
+};
 
 const request = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
   const { method = 'GET', body, token } = options;
@@ -87,6 +93,9 @@ const request = async <T>(path: string, options: RequestOptions = {}): Promise<T
     );
   }
 
+  // 204 carries no envelope by design, so there is nothing to unwrap.
+  if (response.status === 204) return undefined as T;
+
   if (!payload?.success) {
     throw new ApiError(response.status, payload?.message ?? 'Request failed.');
   }
@@ -112,6 +121,40 @@ export const authApi = {
   /** Validates a stored token and returns the owning user. */
   me(token: string): Promise<User> {
     return request<User>('/auth/me', { token });
+  },
+};
+
+/**
+ * Doctors.
+ *
+ * Browsing needs a session but not admin rights; writes throw 403 for a regular
+ * user, which the admin screens surface rather than preventing.
+ */
+export const doctorsApi = {
+  list(token: string): Promise<Doctor[]> {
+    return request<Doctor[]>('/doctors', { token });
+  },
+
+  get(id: string, token: string): Promise<Doctor> {
+    return request<Doctor>(`/doctors/${id}`, { token });
+  },
+
+  /** Admin only. */
+  create(input: DoctorInput, token: string): Promise<Doctor> {
+    return request<Doctor>('/doctors', { method: 'POST', body: input, token });
+  },
+
+  /**
+   * Admin only. Full replacement: every field must be present, matching the
+   * server's PUT semantics.
+   */
+  update(id: string, input: DoctorInput, token: string): Promise<Doctor> {
+    return request<Doctor>(`/doctors/${id}`, { method: 'PUT', body: input, token });
+  },
+
+  /** Admin only. Resolves once the server confirms with 204. */
+  remove(id: string, token: string): Promise<void> {
+    return requestEmpty(`/doctors/${id}`, { token });
   },
 };
 

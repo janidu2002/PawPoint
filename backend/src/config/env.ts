@@ -36,6 +36,18 @@ if (jwtSecret.length < MIN_SECRET_LENGTH) {
   );
 }
 
+/**
+ * Email that is granted admin rights at registration.
+ *
+ * Development convenience only: whoever can register this address becomes an
+ * admin, so a deployed environment would need a real invite or approval flow.
+ * Left unset, nobody is an admin and every account is a regular user.
+ */
+const optionalEmail = (value: string | undefined): string | undefined => {
+  const trimmed = value?.trim().toLowerCase();
+  return trimmed || undefined;
+};
+
 export const env = {
   port: Number(process.env.PORT) || 5000,
   mongoUri: requireString("MONGO_URI", process.env.MONGO_URI),
@@ -44,4 +56,6 @@ export const env = {
   dnsServers: process.env.DNS_SERVERS,
   /** Only ever "development" here; there is no deployed environment yet. */
   nodeEnv: process.env.NODE_ENV ?? "development",
+  /** Optional. See the note above before using this outside development. */
+  adminEmail: optionalEmail(process.env.ADMIN_EMAIL),
 } as const;

@@ -6,14 +6,10 @@ import { Colors, Typography } from '@/constants/theme';
 
 /**
  * Tab group for signed-in users. The parentheses keep it out of the URL, so
- * these screens live at /home, /appointments and /profile.
+ * these screens live at /home, /doctors, /appointments and /profile.
  *
  * The root layout mounts this group only when a session exists, so these
  * screens assume `user` is populated.
- *
- * The Doctors tab is intentionally absent: the doctor API does not exist until
- * Phase 4, and an unregistered screen cannot be reached by any route - not just
- * hidden from the tab bar. Phase 4 adds `(tabs)/doctors.tsx` here.
  */
 export default function TabsLayout() {
   return (
@@ -38,6 +34,13 @@ export default function TabsLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ color }) => <TabIcon name="home" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="doctors"
+        options={{
+          title: 'Doctors',
+          tabBarIcon: ({ color }) => <TabIcon name="doctors" color={color} />,
         }}
       />
       <Tabs.Screen

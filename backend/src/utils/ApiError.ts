@@ -36,6 +36,12 @@ export class ApiError extends Error {
     return new ApiError(401, message);
   }
 
+  /** Authenticated, but not permitted. Distinct from 401 so a client can tell
+   *  "log in as someone else" apart from "you cannot do this". */
+  static forbidden(message = "Forbidden"): ApiError {
+    return new ApiError(403, message);
+  }
+
   static conflict(message: string): ApiError {
     return new ApiError(409, message);
   }

@@ -32,6 +32,11 @@ export interface InputProps {
   returnKeyType?: ReturnKeyTypeOptions;
   onSubmitEditing?: () => void;
   editable?: boolean;
+  /** Grows the field for long-form text; see `multilineHeight`. */
+  multiline?: boolean;
+  /** Visible rows when `multiline`. */
+  rows?: number;
+  maxLength?: number;
   testID?: string;
 }
 
@@ -52,6 +57,9 @@ export function Input({
   returnKeyType,
   onSubmitEditing,
   editable = true,
+  multiline = false,
+  rows = 4,
+  maxLength,
   testID,
 }: InputProps) {
   const [focused, setFocused] = useState(false);
@@ -76,10 +84,16 @@ export function Input({
         returnKeyType={returnKeyType}
         onSubmitEditing={onSubmitEditing}
         editable={editable}
+        maxLength={maxLength}
+        multiline={multiline}
+        // Grows downward from the top rather than being vertically centred, which
+        // is what multiline means to a user typing a description.
+        textAlignVertical={multiline ? 'top' : 'center'}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         style={[
           styles.input,
+          multiline && { height: InputHeight * rows, paddingTop: Spacing.sm, paddingBottom: Spacing.sm },
           focused && styles.focused,
           Boolean(error) && styles.inputError,
           !editable && styles.inputDisabled,

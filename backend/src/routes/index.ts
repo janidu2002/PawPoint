@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import authRoutes from "./auth.routes";
+import doctorRoutes from "./doctor.routes";
 
 /**
  * Aggregates every feature router. Mounted once at `/api` in server.ts, so a
@@ -9,5 +10,6 @@ import authRoutes from "./auth.routes";
 const router = Router();
 
 router.use("/auth", authRoutes);
+router.use("/doctors", doctorRoutes);
 
 export default router;

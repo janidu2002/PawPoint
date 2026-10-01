@@ -80,6 +80,7 @@ function RootNavigator() {
         <Stack.Protected guard={status === 'signed-in'}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="doctor/[id]" />
+          <Stack.Screen name="doctor-form" />
         </Stack.Protected>
 
         <Stack.Protected guard={status === 'signed-out'}>
