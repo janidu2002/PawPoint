@@ -1,7 +1,10 @@
 import type { Request, Response } from "express";
 
+import { Appointment } from "../models/Appointment";
 import { Doctor, type DoctorDocument } from "../models/Doctor";
 import { ApiError } from "../utils/ApiError";
+import { computeAvailability, isValidDate, toIsoDate, toTimeOfDay } from "../utils/availability";
+import { BLOCKING_STATUSES } from "../types/appointment";
 import { WEEKDAYS } from "../types/doctor";
 import type { DoctorDto, DoctorInput, Weekday } from "../types/doctor";
 
@@ -181,6 +184,80 @@ export const getById = async (req: Request, res: Response): Promise<void> => {
 };
 
 /**
+ * GET /api/doctors/:id/availability?date=YYYY-MM-DD — any authenticated user.
+ *
+ * Resolves the doctor's weekly schedule into concrete slots for one date. Only
+ * `available` is reported per slot: the client needs to know a time is taken in
+ * order to grey it out, but who booked it and for which pet is nobody else's
+ * business.
+ */
+export const getAvailability = async (req: Request, res: Response): Promise<void> => {
+  const doctor = await Doctor.findById(req.params.id);
+
+  if (!doctor) {
+    throw ApiError.notFound("Doctor not found");
+  }
+
+  // Express types `query.date` as a union that includes arrays and objects, so
+  // only a bare string is a usable value.
+  const rawDate =
+    typeof req.query.date === "string" ? req.query.date.trim() : "";
+
+  if (!rawDate) {
+    throw ApiError.badRequest("Validation failed", {
+      date: "Date is required",
+    });
+  }
+
+  if (!isValidDate(rawDate)) {
+    throw ApiError.badRequest("Validation failed", {
+      date: "Date must be a valid date in YYYY-MM-DD format",
+    });
+  }
+
+  // Both sides are UTC-derived ISO dates, so lexicographic order is chronological.
+  const now = new Date();
+  const today = toIsoDate(now);
+
+  if (rawDate < today) {
+    throw ApiError.badRequest("Validation failed", {
+      date: "Date cannot be in the past",
+    });
+  }
+
+  const booked = await Appointment.find({
+    doctorId: doctor._id,
+    appointmentDate: rawDate,
+    status: { $in: BLOCKING_STATUSES },
+  })
+    .select("appointmentTime")
+    .lean();
+
+  const availability = computeAvailability({
+    date: rawDate,
+    startTime: doctor.startTime,
+    endTime: doctor.endTime,
+    availableDays: doctor.availableDays as Weekday[],
+    blockedTimes: booked.map((appointment) => appointment.appointmentTime),
+    // Slots that have already started today are omitted rather than marked
+    // unavailable, since a picker would only ever hide them anyway.
+    ...(rawDate === today ? { minStartTime: toTimeOfDay(now) } : {}),
+  });
+
+  if (!availability) {
+    throw ApiError.badRequest("Validation failed", {
+      date: "Date must be a valid date in YYYY-MM-DD format",
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    message: "Availability retrieved",
+    data: { doctorId: doctor._id.toString(), ...availability },
+  });
+};
+
+/**
  * PUT /api/doctors/:id — admin only.
  *
  * Full replacement for the editable fields: the doctor form always sends all of
@@ -209,16 +286,35 @@ export const update = async (req: Request, res: Response): Promise<void> => {
 /**
  * DELETE /api/doctors/:id — admin only.
  *
- * Hard delete. Appointments do not exist yet, so there is nothing to cascade to;
- * once they reference doctors this needs a conflict check rather than leaving
- * bookings pointing at a removed doctor.
+ * Hard delete, refused once the doctor has appointments. Deleting instead would
+ * leave bookings pointing at a vet who no longer exists, and the alternative -
+ * keeping the doctor - has nowhere to show up in the roster, so the admin has to
+ * cancel the appointments first.
  */
 export const remove = async (req: Request, res: Response): Promise<void> => {
-  const doctor = await Doctor.findByIdAndDelete(req.params.id);
+  const doctor = await Doctor.findById(req.params.id);
 
   if (!doctor) {
     throw ApiError.notFound("Doctor not found");
   }
+
+  const [appointmentCount, blockingCount] = await Promise.all([
+    Appointment.countDocuments({ doctorId: doctor._id }),
+    Appointment.countDocuments({
+      doctorId: doctor._id,
+      status: { $in: BLOCKING_STATUSES },
+    }),
+  ]);
+
+  if (appointmentCount > 0) {
+    throw ApiError.conflict(
+      blockingCount === appointmentCount
+        ? "This doctor has upcoming appointments and cannot be deleted. Cancel them first."
+        : "This doctor has appointment history and cannot be deleted"
+    );
+  }
+
+  await Doctor.deleteOne({ _id: doctor._id });
 
   res.status(204).send();
 };
